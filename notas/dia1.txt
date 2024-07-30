@@ -1,0 +1,289 @@
+-- Tipos de EDSLs
+
+Shallow embedding
+  - Se captura directamente en un tipo de dato la semántica de los datos del dominio.
+    - Constructores + Observadores.
+  - Dicha interpretación es fija.
+    - Se elige un tipo concreto de manera explicita.
+  - Las operaciones del DSL manipulan directamente los valores del dominio.
+  
+Deep embedding
+  - Las construcciones del DSL son representadas como términos de tipos de datos que 
+    corresponden a árboles de sintaxis abstracta (AST).
+    - Cerca de un lenguaje standalone.
+  - Estos términos son luego recorridos para su evaluación.
+  - No hay una semántica fija, sino que se pueden definir diferentes interpretaciones.
+    - Las operaciones dan la semántica.
+    
+-- Ejemplo de EDSL
+
+Consideremos un lenguaje que manipula expresiones aritméticas formado por las siguientes
+operaciones:
+
+val :: Int -> Expr           -- Constuctor, todo entero es una expresión
+add :: Expr -> Expr -> Expr  -- Constructor, una suma de expresiones es una expresión
+eval :: Expr -> Int          -- Observador, evalua una expresión
+
+Ejemplo de un programa en el DSL:
+
+siete :: Expr
+siete = add (val 3) (val 4)
+
+dovle :: Expr -> Expr
+doble e = add e e
+
+runDoble :: Expr -> Int
+run Doble e = eval (doble e)
+
+-- Shallow embedding
+
+Se captura directamente la semántica del dominio que manipula el DSL.
+
+Para este tipo de expresiones aritméticas la representación por defecto es usar un entero,
+el cuál va a denotar el valor de la expresión.
+
+  type Expr = Int
+  
+  Constructores
+    val n    = n
+    add e e' = e + e'
+
+  Observador
+    eval e = e
+
+-- Deep embedding
+
+Se definen las formas de construir expresiones a través de un tipo
+
+  data Expr where
+    Val :: Int -> expr
+    Add :: Expr -> Expr -> Expr
+
+Operaciones de construcción (smart constructors, se usan para ocultar la implementación
+interna):
+
+  val :: Int -> Expr
+  val n = Val n
+  
+  add :: Expr -> Expr -> Expr
+  add e e' = Add e e'
+  
+El observador ahora hace las veces de función de interpretación
+
+  eval :: Expr -> Int
+  eval (Val n)    = n
+  eval (Add e e') = eval e + eval e'
+
+-- ¿Qué embedding elegir? (expression problem)
+
+Shallow embedding
+  Pros: Es simple agregar nuevas construcciones al EDSL (por ejemplo, mult), mientras se
+        puedan representar en el dominio de interpretación.
+  Cons: Agregar nuevas formas de interpretación (por ejemplo, hacer un pretty printing
+        de las expresiones) puede implicar una reimplementación completa.
+          - Los constructores ya evaluan.
+
+Deep embedding
+  Pros: Es simple agregar un nuevo observador (por ejemplo, pretty printing).
+  Cons: Agregar nuevas construcciones al lenguaje (como mult) implica modificar el tipo 
+        del ASR (el tipo Expr)  reimplementar todos los observadores (las funciones de 
+        interpretación).
+
+-- Razonamiento sobre el EDSL
+
+A partir de la definición del EDSL en Haskell (tanto como shallow o deep embedding) es
+posible probar propiedades del EDSL.
+
+Por ejemplo, 
+  add e (add e' e'') = add (add e e') e''
+  add e e' = add e' e
+
+-- Tipos Algebráicos
+
+Notación de GADTs:
+
+  data Expr where
+    Val :: Int -> Expr
+    Add :: Expr -> Expr -> Expr
+    
+Notación clásica:
+
+  data Expr = Val Int | Add Expr Expr
+
+En general:
+
+  data T a_1 ... a_m = C_1 t_11 ... t_1k_1
+                     ...
+                   | C_n t_n1 ... t_nk_n
+                   
+  donde las variables a_i puede sewr usadas en la definición de los constructores
+  
+Una manera simple de definir estructuras arborescentes:
+
+  data Tree a = Leaf a | Fork (Tree a) (Tree a)
+
+  data Tree a where
+    Leaf :: a -> Tree a
+    Fork :: Tree a -> Tree a -> Tree a
+    
+Los términos de un lenguaje son estructuras arborescentes.
+
+-- Tipos algebráicos - Constructores
+
+  data Expr where
+    Val :: INt -> Expr
+    Add :: Expr -> Expr -> Expr
+    
+Los constructores se introducen al definir el tipo.
+
+También puede definir smart constructors
+
+  val = Val
+  add = Add
+  
+  val x | x >= 0 = val x
+  
+-- Tipos algebráicos - Observadores
+
+Dado el tipo:
+
+  data Expr where
+    Val :: INt -> Expr
+    Add :: Expr -> Expr -> Expr
+    
+Puedo definir observadores (funciones) por casos, usando patter-matching y recursión
+
+  eval :: Expr -> Int
+  eval (Val x)   = x
+  eval (Add x y) = eval x + eval y
+  
+Los patrones satisfacen la gramática:
+
+pat ::= _ | variable | literal | (pat_1, ..., pat_m) 
+          | pat : pat | C pat_1 ... pat_n | var@pat
+          
+-- Observadores - Alto orden
+
+Multiples observadores puede compartir un patrón de recursión:
+
+  eval :: Expr -> Int
+  eval (Val x)   = x
+  eval (Add x y) = eval x + eval y
+
+  cantVals :: Expr -> Int
+  cantVals (Val _)   = 1
+  cantVals (Add x y) = cantVal x + cantVal y
+
+  ppExpr :: Expr -> String
+  ppExpr (Val x)   = show x
+  ppExpr (Add x y) = ppExpr x ++ " + " ++ ppExpr y
+
+Puedo defirnir funciones de alto orden para capturar ese patrón
+
+  foldExpr :: (Int -> a) -> (a -> a -> a) -> Expr -> a
+  foldExpr fv _  (Val x)   = fv x
+  foldExpr fv fa (Add x y) = fa (rec x) (rec y)
+    where rec = foldExpr fv fa
+    
+Luego
+
+  eva      = foldExpr id (+)
+  cantVals = foldExpr (const 1) (+)
+  ppExpr   = foldExpr show (\ppx ppy -> ppx ++ " + " ++ ppy)
+  
+-- Alto Orden en Shallow Embedding
+
+Agregamos variables a nuestro lenguaje de expresiones:
+
+  val :: Int -> Expr
+  add :: Expr -> Expr -> Expr
+  var :: String -> Expr
+  
+Nuestro evaluador deberpia poder aplicar el ambiente de variables:
+
+  eval :: Expr -> [(String, Int)] -> Int
+  
+Entonces el tipo Expr es::
+  
+  type Expr = [(String, Int)] -> Int
+  
+y los constructores son funciones de alto orden
+
+  val x   = \_   -> x
+  add x y = \env -> x env + y env
+  var v   = \env -> slookup v env
+  
+-- Type classes
+
+Podemos empaquetar la API del lenguaje en una type class:
+  
+    class IExpr e where
+      val  :: Int -> e
+      add  :: e -> e -> e
+      eval :: e -> Int
+      
+Definiendo instancias para cada implementación:
+
+  data Expr = Val Int | Add Expr Expr
+  
+  instance IExpr Expr where
+    val = Val
+    add = Add
+    eval = foldExpr id (+)
+    
+  instance IExpr Int where
+    val n  = n
+    add x  = x + y
+    eval e = e
+    
+-- Otro ejemplo de EDSL - Regiones geométricas
+
+Consideremos un lenguaje que manipula regiones geómetricas formado por las siguientes
+operaciones:
+
+  class Region r where
+    inRegion   :: Point -> r -> Bool --observador
+    circle     :: Radius -> r
+    outside    :: r -> r
+    union      :: r -> r -> r
+    interesect :: r -> r -> r
+    
+Ejemplo de un program en el DSL
+
+  aro :: Region r => Radius -> Radius -> r
+  aro r1 r2 = outside (circle r1) ´intersect´ circle r2
+  
+Shallow embedding
+
+Se captura directamente la semántica del dominio que manipula el DSL, en este caso r
+egiones.
+
+Una región geometrica se va a representar por la función característica del conjunto de 
+puntos (dice que puntos están y cuales no)
+
+data SRegion = R (Point -> Bool)
+
+instance Region SRegion where
+  p ´inRegion´ (R r)       = r p
+  circle r                 = R $ \p ->  magnitude p =< r
+  outside (R r)            = R $ \p -> not (r p)
+  (R r) ´union´ (R r')     = R $ \p -> r p || r' p
+  (R r) ´intersect´ (R r') = R $ \p -> rp && r' p
+  
+Deep embedding
+
+Se definen las formas de construir regiones a través de un tipo
+
+data DRegion = Circle Radius
+             | Outside DRegion
+             | Union DRegion DRegion
+             | Intersect DRegion DRegion
+             
+ la instancia
+ 
+  instance Region DRegion where
+    circle r = Circle r
+    otuside r = Outside r
+    r ´union´ r' = Unoin r r'
+    r 'intersect' r' = INtersect r r'
+    p ´inRegion´ 

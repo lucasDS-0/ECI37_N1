@@ -1,0 +1,487 @@
+
+% ******** Meta ******** %
+
+\documentclass{article}
+\usepackage[paper=a4paper, 
+		    left=2cm, 
+			right=2cm, 
+			bottom=2.5cm, 
+			top=2.5cm]{geometry}
+\usepackage[utf8]{inputenc}
+\usepackage[spanish]{babel}
+\usepackage[colorlinks = true, linkcolor=color1]{hyperref}
+
+% ******** Font ******** %
+
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}\fontfamily{cmtt}
+\usepackage{dirtytalk}
+
+% ******** Color ******** %
+
+\usepackage{xcolor}
+\definecolor{color1}{RGB}{220,55,130}
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+% ******** Envs ******** %
+
+\newcommand{\imp}[1]{\textcolor{color1}{#1}}
+
+\usepackage{enumitem}
+\setlist[itemize]{label=\textcolor{color1}{\tiny $\blacksquare$}}
+\renewcommand{\labelenumi}{\textcolor{color1}{\arabic{enumi}.}}
+\renewcommand{\labelenumii}{\textcolor{color1}{\arabic{enumi}.\arabic{enumii}}}
+\renewcommand{\labelenumiii}{\textcolor{color1}{\arabic{enumi}.\arabic{enumii}.\arabic{enumiii}}}
+
+\usepackage{listings}
+
+\usepackage{listings}
+\lstdefinestyle{mystyle}{
+    commentstyle=\color{codegray},
+    keywordstyle=\color{color1},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{color1},
+    basicstyle=\ttfamily,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=4pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,     
+    tabsize=2,
+	frame=leftline, 
+	framexleftmargin=5mm,
+	frame=shadowbox,
+	rulesepcolor=\color{color1},
+	captionpos=t,
+	xleftmargin=.05\textwidth,
+	xrightmargin=.02\textwidth
+}
+
+\lstset{style=mystyle}
+
+\lstset{
+    language=Haskell,
+    literate=
+    {á}{{\'a}}1 {é}{{\'e}}1 {í}{{\'i}}1 {ó}{{\'o}}1 {ú}{{\'u}}1
+    {Á}{{\'A}}1 {É}{{\'E}}1 {Í}{{\'I}}1 {Ó}{{\'O}}1 {Ú}{{\'U}}1
+    {ñ}{{\~n}}1
+}
+
+
+% ******** Math ******** %
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+% ******** Doc Format ******** %
+
+\addto\captionsspanish{
+	\renewcommand{\contentsname}{Contenidos}
+}
+
+% ******** Headers ******** %
+
+\usepackage{fancyhdr}\setlength{\headheight}{15.5pt}
+\pagestyle{fancy}
+
+\fancyheadinit{\color{color1}}
+\fancyfootinit{\color{color1}}
+\fancyhead[C,R]{}
+\fancyhead[L]{\leftmark}
+\fancyfoot[L,C]{}
+\fancyfoot[R]{\thepage}
+\renewcommand{\headrulewidth}{0.5pt}
+\renewcommand{\footrulewidth}{0.5pt}
+
+
+% ******** Body ******** %
+
+\title{\Huge Abordaje funcional a EDSLs}
+\author{Lucas Di Salvo}
+\date{ECI 37 - 2024}
+
+\begin{document}
+
+\maketitle
+
+\tableofcontents
+
+\thispagestyle{empty}
+
+\newpage
+
+\section{Introducción}\label{sec:introduccion}
+
+Un lenguaje de dominio específico (DSL) es un lenguaje de programación o especificación de expresividad limitada, especialmente diseñado para resolver problemas en un particular dominio. Por ejemplo
+\begin{itemize}
+\item HTML
+\item VHDL (hardware)
+\item Mathematica, Maple
+\item SQL, XQuery (lenguajes de query)
+\item Yacc y Lex (para generación de parser)
+\item \LaTeX (para producir documentos)
+\item DSLs para aplicaciones financieras (\url{http://www.dslfin.org})
+\end{itemize}
+Existen dos abordajes principales para implementar DSLs:
+
+\begin{itemize}
+\item \imp{Externo}: Lenguaje standalone donde es necesario desarrollar lexer, parser, compilador, y demás herramientas.
+\item \imp{Interno}: Lenguaje implementado en el contexto de otro (embebido).
+\end{itemize}
+
+\subsection{DSLs embebidos}\label{subsec:dsls_embebidos}
+
+Los \imp{Embedded DSLs} (EDSLs) son DSLs implementados como bibliotecas específicas en lenguajes de propósito general que actuan como anfitrión (host languages). De esta manera el EDSL puede hacer uso de la infraestructura y facilidades existentes en el lenguaje anfitrión.
+
+\
+
+La implementacion de un EDSL suele reducir el costo de desarrollo (se evita implementar lexer, parser, etc), y los lenguajes funcionales, en particular Haskell, son muy
+apropiados para la implementación de EDSLs. Es relevante mencionar que el manejo de errores suele ser un punto debil de los EDSLs. Algunos ejemplos de EDSLs en Haskell son:
+
+\begin{itemize}
+\item Quickcheck
+\item Sequence (finger trees)
+\item Streams
+\item HaXml (procesamiento de XML, HTML)
+\item Lava (hardware description)
+\item Parsec (parsing)
+\item Pretty printing
+\item Haskore (para componer música)
+\end{itemize}
+
+\newpage
+
+\section{Tipos de EDSLs}\label{sec:tipos_de_edsls}
+    
+\noindent Los EDSLs se caracterizan por tener:
+
+\begin{itemize}
+\item Shallow embedding
+\begin{itemize}
+\item Se captura directamente en un tipo de dato la semántica de los datos del dominio.
+\item Se elige un tipo concreto de manera explicita, cuya interpretación es fija.
+\item Las operaciones del DSL manipulan directamente los valores del dominio.
+\end{itemize}
+\item Deep embedding
+\begin{itemize}
+\item Las construcciones del DSL son representadas como términos de tipos de datos que corresponden a árboles de sintaxis abstracta (AST).
+\item Está más cerca de un lenguaje standanlone.
+\item Los términos son luego recorridos para su evaluación
+\item No hay una semántica fija, sino que se pueden definir diferentes interpretaciones.
+\item Las operación dictan la semántica.
+\end{itemize}
+\end{itemize}
+
+\subsection*{Ejemplo de EDSL}
+
+Consideremos un lenguaje que manipula expresiones aritméticas formado por las siguientes operaciones:
+
+\begin{lstlisting}
+val :: Int -> Expr           -- Constuctor, 
+                             -- todo entero es una expresión
+add :: Expr -> Expr -> Expr  -- Constructor, 
+                             -- la suma de expresiones es una expresión
+eval :: Expr -> Int          -- Observador, evalua una expresión
+\end{lstlisting}
+
+Ejemplo de un programa en el DSL:
+
+\begin{lstlisting}
+siete :: Expr
+siete = add (val 3) (val 4)
+
+dovle :: Expr -> Expr
+doble e = add e e
+
+runDoble :: Expr -> Int
+run Doble e = eval (doble e)
+\end{lstlisting}
+
+\section{Shallow Embedding}\label{sec:shallow_embedding}
+
+\noindent Se captura directamente la semántica del dominio que manipula el DSL. Para este tipo de expresiones aritméticas, la representación por defecto es usar un entero, el cuál va a denotar el valor de la expresión.
+
+\
+
+\begin{lstlisting}
+type Expr = Int
+-- Constructores
+val n    = n
+add e e' = e + e'
+-- Observador
+eval e = e
+\end{lstlisting}
+
+\section{Deep Embedding}\label{sec:deep_embedding}
+
+\noindent Se definen las formas de construir expresiones a través de un tipo
+
+\begin{lstlisting}
+data Expr where
+  Val :: Int -> expr
+  Add :: Expr -> Expr -> Expr
+\end{lstlisting}
+Operaciones de construcción (smart constructors, se usan para ocultar la implementación
+interna):
+\begin{lstlisting}
+val :: Int -> Expr
+val n = Val n
+  
+add :: Expr -> Expr -> Expr
+add e e' = Add e e'
+\end{lstlisting}
+El observador ahora hace las veces de función de interpretación
+\begin{lstlisting}
+eval :: Expr -> Int
+eval (Val n)    = n
+eval (Add e e') = eval e + eval e'
+\end{lstlisting}
+
+
+\section{¿Qué embedding elegir? (expression problem)}\label{sec:expression_problem}
+
+
+\begin{itemize}
+\item[] \imp{Shallow embedding}
+\begin{itemize}
+\item[] \imp{Pros}: Es simple agregar nuevas construcciones al EDSL (por ejemplo, mult), mientras se puedan representar en el dominio de interpretación
+\item[] \imp{Cons}: Agregar nuevas formas de interpretación (por ejemplo, hacer un pretty printing de las expresiones) puede implicar una reimplementación completa. Adicionalmente, los constructores ya evaluan.
+\end{itemize}
+\item[] \imp{Deep embedding}
+\begin{itemize}
+\item[] \imp{Pros}: Es simple agregar un nuevo observador (por ejemplo, pretty printing).
+\item[] \imp{Cons}: Agregar nuevas construcciones al lenguaje (como mult) implica modificar el tipo del AST (el tipo \texttt{Expr})  reimplementar todos los observadores (las funciones de interpretación).
+\end{itemize}
+\end{itemize}
+
+\section{Razonamiento sobre EDSLs}\label{sec:razonamiento_sobre_edsls}
+
+\noindent A partir de la definición del EDSL en Haskell (tanto como shallow o deep embedding) es posible probar propiedades del EDSL. Por ejemplo:
+\begin{center}
+\texttt{add e (add e' e'') = add (add e e') e''} \\
+\texttt{add e e' = add e' e}
+\end{center}
+
+\newpage
+
+\section{Tipos Algebráicos}\label{sec:tipos_algebraicos}
+
+\begin{lstlisting}
+-- Notación de Generalized Algebraic Data Types (GADTs):
+data Expr where
+  Val :: Int -> Expr
+  Add :: Expr -> Expr -> Expr
+    
+-- Notación clásica
+data Expr = Val Int | Add Expr Expr
+\end{lstlisting}
+
+En general:
+\begin{lstlisting}
+data T a_1 ... a_m = C_1 t_11 ... t_1k_1
+                     ...
+                   | C_n t_n1 ... t_nk_n
+\end{lstlisting}                   
+
+Donde las variables \texttt{a\_i} puede ser usadas en la definición de los constructores. Y se tiene una manera simple de definir estructuras arborescentes:
+
+\begin{lstlisting}
+data Tree a = Leaf a | Fork (Tree a) (Tree a)
+
+data Tree a where
+  Leaf :: a -> Tree a
+  Fork :: Tree a -> Tree a -> Tree a
+\end{lstlisting}
+
+Los términos de un lenguaje son estructuras arborescentes.
+
+\subsection{Constructores}\label{subsec:gadts_constructores}
+
+\begin{lstlisting}
+-- Los constructores se introducen al definir el tipo.
+data Expr where
+  Val :: Int -> Expr
+  Add :: Expr -> Expr -> Expr
+-- También puede definir "smart" constructors
+val = Val
+add = Add
+  
+val x | x >= 0 = val x
+\end{lstlisting}
+\subsection{Observadores}\label{subsec:gadts_observadores}
+
+\begin{lstlisting}
+-- Dado el tipo:
+data Expr where
+  Val :: INt -> Expr
+  Add :: Expr -> Expr -> Expr    
+-- Puedo definir observadores (funciones) por casos, 
+-- usando patter-matching y recursión
+eval :: Expr -> Int
+eval (Val x)   = x
+eval (Add x y) = eval x + eval y
+\end{lstlisting}
+
+Los patrones satisfacen la gramática:
+
+\[pat~::= ~\_ ~|~variable~|~literal~|~(pat_1, \ldots, pat_m)~|~pat:pat~|~C~pat_1~\ldots~pat_n~|~var@pat\]
+          
+\section{Observadores - Alto Orden}\label{sec:observadores_alto_orden}
+
+\noindent Multiples observadores puede compartir un patrón de recursión:
+\begin{lstlisting}
+eval :: Expr -> Int
+eval (Val x)   = x
+eval (Add x y) = eval x + eval y
+
+cantVals :: Expr -> Int
+cantVals (Val _)   = 1
+cantVals (Add x y) = cantVals x + cantVals y
+
+ppExpr :: Expr -> String
+ppExpr (Val x)   = show x
+ppExpr (Add x y) = ppExpr x ++ " + " ++ ppExpr y
+
+\end{lstlisting}
+
+Puedo defirnir funciones de alto orden para capturar ese patrón
+\begin{lstlisting}
+foldExpr :: (Int -> a) -> (a -> a -> a) -> Expr -> a
+foldExpr fv _  (Val x)   = fv x
+foldExpr fv fa (Add x y) = fa (rec x) (rec y)
+  where rec = foldExpr fv fa
+-- Luego se puede definir:
+eval     = foldExpr id (+)
+cantVals = foldExpr (const 1) (+)
+ppExpr   = foldExpr show (\ppx ppy -> ppx ++ " + " ++ ppy)
+\end{lstlisting}
+
+\subsection{Alto Orden en Shallow Embedding}\label{subsec:alto_orden_shallow_embedding}
+
+Agregamos variables a nuestro lenguaje de expresiones:
+
+\begin{lstlisting}
+val :: Int -> Expr
+add :: Expr -> Expr -> Expr
+var :: String -> Expr
+\end{lstlisting}  
+
+Nuestro evaluador debería poder aplicar el ambiente de variables:
+
+\begin{lstlisting}
+eval :: Expr -> [(String, Int)] -> Int
+\end{lstlisting}
+
+Entonces el tipo Expr es:
+
+\begin{lstlisting}
+type Expr = [(String, Int)] -> Int
+\end{lstlisting}
+
+y los constructores son funciones de alto orden
+
+\begin{lstlisting}
+val x   = \_   -> x
+add x y = \env -> x env + y env
+var v   = \env -> slookup v env  -- función placeholder para lookup
+\end{lstlisting}
+
+\newpage
+
+\section{Type classes}\label{sec:type_classes}
+
+\noindent Podemos empaquetar la API del lenguaje en una type class:
+\begin{lstlisting}
+class IExpr e where
+  val  :: Int -> e
+  add  :: e -> e -> e
+  eval :: e -> Int
+\end{lstlisting}
+
+Definiendo instancias para cada implementación:
+
+\begin{lstlisting}
+data Expr = Val Int | Add Expr Expr
+
+instance IExpr Expr where
+  val = Val
+  add = Add
+  eval = foldExpr id (+)
+    
+instance IExpr Int where
+  val n  = n
+  add x  = x + y
+  eval e = e
+\end{lstlisting}
+
+\section{Ejeplo - Regiones geométricas}\label{sec:ejemplo_regiones_geometricas}
+
+\noindent Consideremos un lenguaje que manipula regiones geómetricas formado por las siguientes operaciones:
+
+\begin{lstlisting}
+class Region r where
+  inRegion   :: Point -> r -> Bool --observador
+  circle     :: Radius -> r
+  outside    :: r -> r
+  union      :: r -> r -> r
+  interesect :: r -> r -> r
+\end{lstlisting}
+
+Ejemplo de un program en el DSL
+
+\begin{lstlisting}
+aro :: Region r => Radius -> Radius -> r
+aro r1 r2 = outside (circle r1) `intersect` circle r2
+\end{lstlisting}
+  
+\subsection{Shallow embedding}
+
+Se captura directamente la semántica del dominio que manipula el DSL, en este caso regiones.
+
+\
+
+Una región geometrica se va a representar por la función característica del conjunto de puntos (dice que puntos están y cuales no)
+
+\begin{lstlisting}
+data SRegion = R (Point -> Bool)
+-- y la instancia
+instance Region SRegion where
+  p `inRegion` (R r)       = r p
+  circle r                 = R $ \p -> magnitude p =< r
+  outside (R r)            = R $ \p -> not (r p)
+  (R r) `union` (R r')     = R $ \p -> r p || r' p
+  (R r) `intersect` (R r') = R $ \p -> r p && r' p
+\end{lstlisting}
+
+\subsection{Deep embedding}
+
+Se definen las formas de construir regiones a través de un tipo
+
+\begin{lstlisting}
+data DRegion = Circle Radius
+             | Outside DRegion
+             | Union DRegion DRegion
+             | Intersect DRegion DRegion
+-- y la instancia
+instance Region DRegion where
+  circle r         = Circle r
+  outside r        = Outside r
+  r `union` r'     = Union r r'
+  r `intersect` r' = Intersect r r'
+  p `inRegion` (Circle r)       = magnitude p <= r
+  p `inRegion` (Outside r)      = not (p `inRegion` r)
+  p `inRegion` (Union r r')     = p `inRegion` r || p `inRegion` r'
+  p `inRegion` (Intersect r r') = p `inRegion` r && p `inRegion` r'
+\end{lstlisting}
+
+
+
+
+\end{document}
