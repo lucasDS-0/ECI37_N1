@@ -481,6 +481,272 @@ instance Region DRegion where
   p `inRegion` (Intersect r r') = p `inRegion` r && p `inRegion` r'
 \end{lstlisting}
 
+donde la implementación del esquema de recursión estructural para \texttt{DRegion} es
+
+\begin{lstlisting}
+foldRegion :: Region r => (Radius -> a) -> (a -> a) -> (a -> a -> a) 
+                                        -> (a -> a -> a) -> r -> a
+foldRegion fCir fOut fUni fInt reg = case reg of
+    Circle rad          -> fCir $ rec rad
+    Outside reg'        -> fOut $ rec reg'
+    Union reg1 reg2     -> fUni (rec reg1) (rec reg2)
+    Intersect reg1 reg2 -> fInt (rec reg1) (rec reg2)
+  where
+    rec = foldRegion fCir fOut fUn fInt
+\end{lstlisting}
+
+\section{Parser aplicativos}\label{sec:parser_aplicativos}
+
+\subsection{Combinadores de parsing}\label{subsec:sombinadores_de_parsing}
+
+Los combinadores de parsing forman un EDSL que es implementado usando un shallow embedding. Están formados por dos grupos de funciones:
+
+\begin{itemize}
+\item Funciones básicas que sirven para reconocer determinados strings de entrada.
+\item Un grupo de combinadores que permiten construir nuevos parsers a partir de otros.
+\end{itemize}
+
+\imp{\emph{Comentario}}: Los parsers no son totales.
+
+\subsubsection{Parser elementales}
+
+La mayoría de las bibliotecas de parsing están formadas por los siguientes 4 combinadores básicos, que se usaran para distintos elementos de la gramática.:
+
+\begin{itemize}
+\item String vacío $pSuceed$, para la cadena vacía.
+\item Terminales $pSym~s$, para literales terminales
+\item Alternativa $p_1~<|>~p_2$, para optar por un parser u otro
+\item Composición $p_1~<*>~p_2$, para composición de parsers.
+\end{itemize}
+
+\subsubsection{El tipo de un parser}
+
+Un parser puede ser entendido como una función que toma un string de entrada y retorna algo de tipo \imp{\texttt{a}}:
+
+\begin{lstlisting}
+String -> a
+\end{lstlisting}
+
+Un parser podría ser ambiguo (si la gramática es ambigua, el parser lo será) y retornar varios posibles valores, significando que puede haber varias formas de reconocer la entrada. En este caso la lista vacía podría tomarse como una falla.
+
+\begin{lstlisting}
+String -> [a]
+\end{lstlisting}
+
+A us vez, un parser podría no consumir toda la entrada y retornar además la parte de la entrada no consumida, para asociar el resultado del cómputo de cada parser a cada cadena (ya que el parser puede bien no ser determinista).
+
+\begin{lstlisting}
+String -> [(a, String)]
+\end{lstlisting}
+
+En resumen, 
+
+\begin{lstlisting}
+type Parser a = String -> [(a, String)]
+\end{lstlisting}
+
+y podemos abstraer el tipo \imp{\texttt{String}} de forma:
+
+\begin{lstlisting}
+type Parser s a = Eq s => [s] -> [(a, [s])]
+\end{lstlisting}
+
+\emph{i.e.} en su lugar ponemos ua lista de valores de tipo \imp{\texttt{s}}, donde a los mismos les vamos a requerir que sean comparables por igualdad (instancia de la clase \imp{\texttt{Eq}})
+
+\subsubsection{Combinadores básicos}
+
+\begin{lstlisting}
+pFail    ::                                    Parser s a
+pSucceed :: a                               -> parser s a
+pSym     :: Eq s => s                       -> Parser s s
+<|>      :: Parser s a        -> Parser s a -> Parser s a
+<*>      :: Parser s (a -> b) -> Parser s a -> Parser s b
+\end{lstlisting}
+
+Para cada uno de ellos escribo su definición
+
+\begin{lstlisting}
+pFail :: Parser s a                                      -- Falla
+pFail = \_ -> []
+
+pSucceded :: a -> Parser s a                             -- Éxito
+pSucceed a = \cs -> [(a, cs)]
+
+pSym :: Eq s => s -> Parser s s                          -- Símbolo
+pSym s = \cs -> case cs of
+    []      -> []
+    (c:cs') -> if c == s
+               then [(c, cs')]  -- encontró el símbolo
+               else []          -- falla
+
+(<|>) :: Parser s a -> Parser s a -> Parser s a          -- Alternativa
+p <|> q = \cs -> p cs ++ q cs
+
+(<*>) :: Parser s (a -> b) -> Parser s a -> Parser s b   -- Composición
+(p <*> q) = \cs -> [(f a, cs'') | (f, cs')  <- p cs
+                                , (a, cs'') <- q cs']
+\end{lstlisting}
+
+\subsubsection{Ejemplos de parsers}
+
+\begin{itemize}
+\item Reconocer una \texttt{'A'} y retornar una \texttt{'B'}:
+\begin{lstlisting}
+pA2B = pSucceed (\_ -> 'B') <*> pSym 'A'
+\end{lstlisting}
+\item Reconocer una \texttt{'A'}, seguida de una \texttt{'B'}, y retornar ambos caracteres en un par:
+\begin{lstlisting}
+pAB = pSucceed (,) <*> pSym 'A' <*> pSym 'B'
+\end{lstlisting}
+\item Parser que retorna una lista de valores de tipo \imp{\texttt{a}}. Toma como parámetro un parser que retorna un \texttt{a}.
+\begin{lstlisting}
+pList :: Parser s a -> Parser s [a]
+pList p = pSucceed (:) <*> p <*> pList p
+          <|>
+          pSucceed []
+\end{lstlisting}
+\item Parser que reconoce u nstring de la forma \texttt{(AB)*}
+\begin{lstlisting}
+COMPLETAR
+\end{lstlisting}
+
+
+\section{Functor}\label{sec:functor}
+
+\noindent Un \imp{functor} puede entenderse como un constructor de tipo \texttt{f :: * -> *} junto a una función de tipo 
+\[(a  \rightarrow b) \rightarrow f~a \rightarrow f~b\]
+que permite mapear/reemplazar los valores detipo a contenidos en un aestructura de tipo \imp{\texttt{f a}} por valores de tipo \imp{\texttt{b}}.
+
+\
+
+En Haskell el concepto de functor es capturado por una clase:
+
+\begin{lstlisting}
+class Functor (f :: * -> *) where
+    fmap :: (a -> b) -> f a -> f b
+\end{lstlisting}
+
+Para ser efectivamente un functor la función fmap debe satisfacer las siguientes propiedades:
+
+\begin{lstlisting}
+fmap id    = id
+fmap (f.g) = fmap f . fmap g
+\end{lstlisting}
+que deberían ser chequeadas al definir las instancias de la clase.
+
+\newpage
+
+\subsection{Ejemplos}
+
+\begin{lstlisting}
+instance Functor [] where
+    fmap = map
+
+instance Functor Maybe where
+    fmap f Nothing  = Nothing
+    fmap f (Just a) = Just (f a)
+    
+    
+instance Functor (Either a) where
+    fmap f (Right x) = Right (f x)
+    fmap f (Left x)  = Left x
+    
+instance Functor ((->) r) where
+    fmap f h = \r -> f (h r)       -- o sea, f.h
+\end{lstlisting}
+
+\subsection{Modelando Error con Maybe}\label{subsec:modelando_error_con_maybe}
+
+\begin{lstlisting}
+divM x y | y /= 0    = Just (x `div` y)
+         | otherwise = Nothing
+\end{lstlisting}
+
+Con fmap puede aplicar una función pura al resultado de una división
+
+\begin{lstlisting}
+foo x y = fmap (+2) (divM x y)
+\end{lstlisting}
+
+en lugar de hacer:
+
+\begin{lstlisting}
+foo x y = case divM x y of
+    Just r  -> Just (r+2)
+    Nothing -> Nothing
+\end{lstlisting}
+
+\section{Functores Aplicativos}\label{sec:functores_aplicativos}
+
+\noindent Los \imp{functores aplicativos} son functores que permiten modelar efectos  apllicar funciones dentro del functor (lo que les da el mote de aplicativos)
+
+\begin{lstlisting}
+class Functor f => Applicative f where
+    pure  :: a -> f a
+    (<*>) :: f (a -> b) -> f a -> f b
+\end{lstlisting}
+
+Se debe cumplir que:
+
+\begin{lstlisting}
+fmap f x = pure f <*> x
+\end{lstlisting}
+
+Sinónimo en \imp{Applicative}:
+
+\begin{lstlisting}
+(<$>) :: Functor f => (a -> b) -> f a -> f b
+f <$> t = fmap f t
+\end{lstlisting}
+
+\subsection{Ejemplo: Maybe}
+
+\begin{lstlisting}
+instance Applicative Maybe where
+    pure = Just
+    (Just f) <*> (Just x) = Just (f x)
+    -        <*> -        = Nothing
+\end{lstlisting}
+
+Puedo por ejemplo modelar expresiones con errores:
+
+\begin{lstlisting}
+type Expr = Maybe Int
+valE x = pure x
+addE x y = (+) <$> x <*> y
+divE x y = case (x,y) of
+               (Just vx, Just vy) -> divM vx vy
+               _                  -> Nothing
+\end{lstlisting}
+
+\subsection{Leyes de functores aplicativos}
+
+\begin{itemize}
+\item Identidad:
+\[pure id <*> = u \equiv u\]
+\item Composición:
+\[pure (.) <*> u <*> v <*> w \equiv u <*> ( v <*> w)\]
+\item Homomorfismo:
+\[pure f <*> pure x \equiv pure (f x)\]
+\item Intercambio:
+\[u <*> pure x \equiv pure (\backslash f \rightarrow f x) <*> u\]
+\end{itemize}
+
+Se cumple entonces
+
+\[fmap~f~x = pure~f <*> x\]
+
+\end{itemize}
+
+
+
+
+
+
+
+
+
+
 
 
 
