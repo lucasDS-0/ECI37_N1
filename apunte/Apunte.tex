@@ -71,7 +71,7 @@
     literate=
     {á}{{\'a}}1 {é}{{\'e}}1 {í}{{\'i}}1 {ó}{{\'o}}1 {ú}{{\'u}}1
     {Á}{{\'A}}1 {É}{{\'E}}1 {Í}{{\'I}}1 {Ó}{{\'O}}1 {Ú}{{\'U}}1
-    {ñ}{{\~n}}1
+    {ñ}{{\~n}}1 {𐃏}{{$\oplus$}}1
 }
 
 
@@ -513,10 +513,10 @@ Los combinadores de parsing forman un EDSL que es implementado usando un shallow
 La mayoría de las bibliotecas de parsing están formadas por los siguientes 4 combinadores básicos, que se usaran para distintos elementos de la gramática.:
 
 \begin{itemize}
-\item String vacío $pSuceed$, para la cadena vacía.
-\item Terminales $pSym~s$, para literales terminales
-\item Alternativa $p_1~<|>~p_2$, para optar por un parser u otro
-\item Composición $p_1~<*>~p_2$, para composición de parsers.
+\item String vacío \texttt{pSuceed}, para la cadena vacía.
+\item Terminales \texttt{pSym s}, para literales terminales
+\item Alternativa \texttt{p$_1$ <|>~p$_2$}, para optar por un parser u otro
+\item Composición \texttt{p$_1$ <*>~p$_2$}, para composición de parsers.
 \end{itemize}
 
 \subsubsection{El tipo de un parser}
@@ -533,7 +533,7 @@ Un parser podría ser ambiguo (si la gramática es ambigua, el parser lo será) 
 String -> [a]
 \end{lstlisting}
 
-A us vez, un parser podría no consumir toda la entrada y retornar además la parte de la entrada no consumida, para asociar el resultado del cómputo de cada parser a cada cadena (ya que el parser puede bien no ser determinista).
+A su vez, un parser podría no consumir toda la entrada y retornar además la parte de la entrada no consumida, para asociar el resultado del cómputo de cada parser a cada cadena (ya que el parser puede bien no ser determinista).
 
 \begin{lstlisting}
 String -> [(a, String)]
@@ -598,7 +598,7 @@ pA2B = pSucceed (\_ -> 'B') <*> pSym 'A'
 \begin{lstlisting}
 pAB = pSucceed (,) <*> pSym 'A' <*> pSym 'B'
 \end{lstlisting}
-\item Parser que retorna una lista de valores de tipo \imp{\texttt{a}}. Toma como parámetro un parser que retorna un \texttt{a}.
+\item Parser que retorna una \emph{lista} de valores de tipo \texttt{a}. Toma como parámetro un parser que retorna un \texttt{a}.
 \begin{lstlisting}
 pList :: Parser s a -> Parser s [a]
 pList p = pSucceed (:) <*> p <*> pList p
@@ -607,19 +607,74 @@ pList p = pSucceed (:) <*> p <*> pList p
 \end{lstlisting}
 \item Parser que reconoce u nstring de la forma \texttt{(AB)*}
 \begin{lstlisting}
-COMPLETAR
+pListAB = pList pAB
+\end{lstlisting}
+\end{itemize}
+
+\subsubsection{Otros combinadores útiles}
+
+\begin{lstlisting}
+(<$>) :: (a -> b) -> Parser s a -> Parser s b
+f <$> p = pSucceed f <*> p
+
+opt :: Parser s a -> a -> Parser s a
+p `opt` a = p <|> pSucceed a
+
+pSat :: (s -> Bool) -> Parser s a
+pSat p = \cs -> case cs of
+                    []      -> []
+                    (c:cs') -> if p c
+                               then [(c, cs')] 
+                               else []
 \end{lstlisting}
 
+\begin{itemize}
+\item Definición de \imp{pAB} usando \texttt{<\$>}
 
+\begin{lstlisting}
+pAB = (,) <$> pSym 'A' <*> 'B'
+\end{lstlisting}
+\item Definición de \imp{Psym} usando \imp{pSat}
+
+\begin{lstlisting}
+pSym a = pSat (== a)
+\end{lstlisting}
+\item Reconocer un dígito
+
+\begin{lstlisting}
+pDigit = pSat isDigit
+  where isDigit c = (c >= '0') && (c <= '9')
+\end{lstlisting}
+\item Definición de \imp{pList} usando \texttt{<\$>} y \imp{opt}
+
+\begin{lstlisting}
+pList p = (:) <$> p <*> pList p `opt` []
+\end{lstlisting}
+\end{itemize}
+
+\subsubsection{Selección de resultados de parser}
+
+\begin{lstlisting}
+(<*) :: Parser s a -> Parser s b -> Parser s a
+p <* q = (\x _ -> x) <$> p <*> q
+
+(*>) :: Parser s a -> Parser s b -> Parser s b
+p *> q = (\_ y -> y) <$> p <*> q
+
+(<$) :: a -> Parser s b -> Parser s a
+a <$ q = pSucceed a <* q
+\end{lstlisting}
+
+Ejemplo, reconocer algo entre paréntesis
+\begin{lstlisting}
+pParens p = pSym '(' *> p <* pSym ')'
+\end{lstlisting}
 \section{Functor}\label{sec:functor}
 
-\noindent Un \imp{functor} puede entenderse como un constructor de tipo \texttt{f :: * -> *} junto a una función de tipo 
+\noindent Un \imp{functor} puede entenderse como un constructor de tipo \texttt{f :: * $\rightarrow$ *} junto a una función de tipo 
 \[(a  \rightarrow b) \rightarrow f~a \rightarrow f~b\]
-que permite mapear/reemplazar los valores detipo a contenidos en un aestructura de tipo \imp{\texttt{f a}} por valores de tipo \imp{\texttt{b}}.
+que permite mapear/reemplazar los valores de tipo \imp{\texttt{a}} contenidos en una estructura de tipo \imp{\texttt{f a}} por valores de tipo \imp{\texttt{b}}. En Haskell el concepto de functor es capturado por una clase:
 
-\
-
-En Haskell el concepto de functor es capturado por una clase:
 
 \begin{lstlisting}
 class Functor (f :: * -> *) where
@@ -633,8 +688,6 @@ fmap id    = id
 fmap (f.g) = fmap f . fmap g
 \end{lstlisting}
 que deberían ser chequeadas al definir las instancias de la clase.
-
-\newpage
 
 \subsection{Ejemplos}
 
@@ -662,7 +715,7 @@ divM x y | y /= 0    = Just (x `div` y)
          | otherwise = Nothing
 \end{lstlisting}
 
-Con fmap puede aplicar una función pura al resultado de una división
+Con fmap se puede aplicar una función pura al resultado de una división
 
 \begin{lstlisting}
 foo x y = fmap (+2) (divM x y)
@@ -678,7 +731,7 @@ foo x y = case divM x y of
 
 \section{Functores Aplicativos}\label{sec:functores_aplicativos}
 
-\noindent Los \imp{functores aplicativos} son functores que permiten modelar efectos  apllicar funciones dentro del functor (lo que les da el mote de aplicativos)
+\noindent Los \imp{functores aplicativos} son functores que permiten modelar efectos al aplicar funciones dentro del functor (lo que les da el mote de aplicativos)
 
 \begin{lstlisting}
 class Functor f => Applicative f where
@@ -723,31 +776,697 @@ divE x y = case (x,y) of
 
 \begin{itemize}
 \item Identidad:
-\[pure id <*> = u \equiv u\]
+\begin{center}
+\texttt{pure id <*>~u $\equiv$ u}
+\end{center}
 \item Composición:
-\[pure (.) <*> u <*> v <*> w \equiv u <*> ( v <*> w)\]
+\begin{center}
+\texttt{pure (.) <*>~u <*>~v <*>~w $\equiv$ u <*>~(v <*>~w)}
+\end{center}
 \item Homomorfismo:
-\[pure f <*> pure x \equiv pure (f x)\]
+\begin{center}
+\texttt{pure f <*>~pure x $\equiv$ pure (f x)}
+\end{center}
 \item Intercambio:
-\[u <*> pure x \equiv pure (\backslash f \rightarrow f x) <*> u\]
+\begin{center}
+\texttt{u <*>~pure x $\equiv$ pure ($\backslash$f $\rightarrow$ f x) <*>~u}
+\end{center}
 \end{itemize}
-
 Se cumple entonces
+\begin{center}
+\texttt{fmap~f~x = pure~f <*> x}
+\end{center}
 
-\[fmap~f~x = pure~f <*> x\]
+\section{Funciones sobre functores aplicativos}\label{sec:funciones_sobre_functores_aplicativos}
 
+\begin{lstlisting}
+sequenceA :: Applicative f => [f a] -> f [a]
+sequenceA []     = pure []
+sequenceA (a:as) = (:) <$> a <*> sequenceA as
+
+traverse :: Applicative f => (a -> f b) -> [a] -> f [b]
+traverse f = sequenceA . fmap f
+\end{lstlisting}
+    
+donde esto último es equivalente a la siguiente definición
+\begin{lstlisting}    
+traverse f []     = pure []
+traverse f (x:xs) = (:) <$> f x <*> traverse f xs
+\end{lstlisting}
+
+\section{Alternative}\label{sec:alternative}
+
+\noindent En \imp{Control.Applicative} tambien se define:
+
+\begin{lstlisting}
+class Applicative f => Alternative f where
+    empty :: f a
+    (<|>) :: f a -> f a -> f a
+    some  :: f a -> f [a]       -- one or more
+    many  :: f a -> f [a]       -- zero or more
+\end{lstlisting}
+
+\subsection{Ejemplo de Alternative: Parsers}\label{subsec:ejemplo_de_alternative_parsers}
+
+\begin{lstlisting}
+instance Applicative (Parser s) where
+    pure = pSucceed
+    <*> = <*>
+
+instance Alternative (Parser s) where
+    empty = pFail
+    <|>   = <|>
+    many = pList
+    some p = (:) <$> p <*> pList p
+\end{lstlisting}
+
+donde
+
+\begin{lstlisting}
+pFail :: Parser s a
+pSuceed :: a -> Parser s a
+<*> :: Parser s (a -> b) -> Parser s a -> Parser s b
+<|> :: Parser s a -> Parser s a -> Parser s a
+pList :: Parser s a -> Parser s [a]
+\end{lstlisting}
+
+\subsubsection{Ejemplo: Listas}
+
+\begin{lstlisting}
+instance Applicative [] where
+    pure x    = [x]
+    fs <*> xs = [f x | f <- fs, x <- xs ]
+\end{lstlisting}
+
+Ejemplo:
+\begin{lstlisting}
+[(+1), (+2)] <*> [1, 2, 3]
+\end{lstlisting}
+\indent \indent evalúa a
+\begin{lstlisting}
+[2, 3, 4, 3, 4, 5]
+\end{lstlisting}
+
+\subsubsection{Ejemplo: Either}
+
+\begin{lstlisting}
+data Either a b = Left a | Right b
+
+instance Functor (Either e) where
+fmap f (Right a) = Right (f a)
+fmap f (Left e)  = Left e
+\end{lstlisting}
+
+Una posible instancia de Applicative:
+
+\begin{lstlisting}
+instance Applicative (Either e) where
+    pure                = Right
+    Right f <*> Right a = Right (f a)
+    Right f <*> Left e  = Left e
+    Left e  <*>         = Left e
+\end{lstlisting}
+
+Otra:
+
+\begin{lstlisting}
+instance Monoid e -> Applicative (Either e) where
+    pure = Right
+    Right f <*> Right a  = Right (f a)
+    Left e  <*> Right    = Left e
+    Right   <*> Left e   = Left e
+    Left e  <*> Left e 0 = Left (e `mappend` e 0 )
+\end{lstlisting}
+
+\subsection{Composición}
+
+La clase de los functores aplicativos es cerrada bajo la composición.
+
+\begin{lstlisting}
+newtype (f :. g) a = Compose {getCompose :: f (g a)}
+
+instance (Functor f, Functor g) => FUnctor (f :. g) where
+    fmap f (Compose x) = Compose (fmap (fmap f) x)
+    
+instance (Applicative f, Applicative g) => Applicative (f :. g) where
+    pure x                  = Compose (pure (pure x))
+    COmpose f <*> Compose x = Compose ((<*>) <$> f <*> x)
+\end{lstlisting}
+
+La composisición de dos mónadas puede no ser un mónada, pero sí es un aplicativo.
+
+\newpage
+
+\section{Evaluador con Fallas}
+
+\begin{lstlisting}
+eval :: Expr -> Maybe Int
+eval (Val n)   = Just n
+eval (Add x y) = case eval x of
+                     Nothing -> Nothing
+                     Just a  -> case eval y of
+                                   Nothing -> NOthing
+                                   Just b  -> Just (a + b)
+
+eval (Div x y) = case eval x of
+                     Nothing -> Nothing
+                     Just a  -> case eval y of
+                                   Nothing -> Nothing
+                                   Just b  -> Just a `divM` b
+\end{lstlisting}
+
+\subsection{Evaluador con Fallas - Applicative}
+
+\begin{lstlisting}
+eval :: Expr -> Maybe Int
+eval (Val n)   = pure n
+eval (Add x y) = (+) <$> eval x <*> eval y
+eval (Div x y) = case eval x of
+                     Nothing -> Nothing
+                     Just a  -> case eval y of
+                         Nothing -> Nothing 
+                         Just b -> a `divM` b`
+\end{lstlisting}
+
+No puedo representar la división con Functores Aplicativos, necesito el resultado de una computación para determinar el siguiente efecto.
+
+
+\subsection{Capturemos patrones}
+
+Primero definimos
+
+\begin{lstlisting}
+return :: a -> Maybe a
+return a = Just a
+
+(>>=) :: Maybe a -> (a -> Maybe b) -> Maybe b
+m >>= f = case m of
+              Nothing -> Nothing
+              Just a  -> f a
+\end{lstlisting}
+
+Entonces,
+
+\begin{lstlisting}
+eval :: Expr -> Mabe Int
+eval (Val n)   = return n
+eval (Add x y) = eval x >>= (\a -> eval y >>= (\b -> return (a+b)))
+eval (Div x y) = eval x >>= (\a -> eval y >>= (\b -> a `dibM` b))
+\end{lstlisting}
+
+y escrito de manera similar
+
+\begin{lstlisting}
+eval :: Expr -> Mabe Int
+eval (Val n)   = return n
+eval (Add x y) = eval x >>= \a -> 
+                 eval y >>= \b -> 
+                 return (a+b)
+eval (Div x y) = eval x >>= \a -> 
+                 eval y >>= \b -> 
+                 a `dibM` b
+\end{lstlisting}
+
+\section{La clase Monad}
+
+\begin{lstlisting}
+clasee Applicative m => Monad m ehere
+(>>=)  :: m a -> (a -> m b) -> m b
+(>>)   :: m a -> m b -> m b
+return :: a -> m a
+
+-- donde
+
+m >> k = m >>= \_ -> k
+\end{lstlisting}
+
+Toda mónada es un functor aplicativo que cumple:
+
+\begin{itemize}
+\item[]
+
+\begin{lstlisting}
+pure = return
+\end{lstlisting}
+
+\item[]
+
+\begin{lstlisting}
+m1 <*> m2 = m1 >>= (\f -> m2 >>= (\x -> return (f x)))
+\end{lstlisting}
 \end{itemize}
 
+No todo \imp{functor aplicativo} es una \imp{mónada}.
+
+\subsection{Mónada Maybe}
+
+\begin{lstlisting}
+data Maybe a = Just a | Nothing
+
+Instance Monad Maybe where
+    return  = Just
+    m >>= k = case m of
+                  Just x  -> k x
+                  Nothing -> Nothing 
+
+instance Functor Maybe where
+    fmap f Nothing = Nothing
+    fmap f (Just a) = Just (f a)
+    
+instance Applicative Maybe where
+    pure                  = Just
+    (Just f) <*> (Just x) = Just (f x)
+    _        <*> _        = Nothing
+    
+-- Visto como mónada
+
+instance Applicative Maybe where
+    pure                  = return
+    m1 <*> m2 = m1 >>= (\f -> m2 >>= (\x -> return (f x)))
+\end{lstlisting}
+
+\subsection{Leyes de mónadas}
+
+\begin{itemize}
+\item $return~x \gg = f = f~x$
+\item $m \gg = return = m$
+\item $(m \gg = f) \gg = g = m \gg = \backslash x \rightarrow (f~x \gg g)$
+\end{itemize}
+
+\subsection{Composición funciones monádicas}
+
+Composición de Kleisli
+
+\begin{lstlisting}
+(>=>) :: Monad m => (a -> m b) -> (b -> m c) -> a -> m c
+f >=> g = \a -> f a >>= g
+\end{lstlisting}
+
+Propiedades:
+
+\begin{itemize}
+\item $return >=> f = f$
+\item $f >=> return = f$
+\item $f >=> (g >=> h) = (f >=> g) >=> h$
+\end{itemize}
+
+\imp{\emph{Nota}}: Estas propiedades se pueden probar usando las leyes de mónadas.
+
+\subsection{Notación do}
 
 
+\begin{lstlisting}
+do m = m
+do {x <- m; m'} = m >>= \x -> do m'
+do {m; m'}      = m >> do m'
+\end{lstlisting}
+
+\subsection{Evaluador con Fallas (notación do)}
+
+\begin{lstlisting}
+eval :: Expr -> Maybe Int
+eval (Val n) = return n
+eval (Add x y) = do a <- eval x
+                    b <- eval y
+                    return (a + b)
+eval (Div x y) = do a <- eval x
+                    b <- eval y
+                    a `divM` b
+\end{lstlisting}
+
+\newpage
+
+\subsection{Monada Either}
+
+\begin{lstlisting}
+data Either a b = Left a | Right b
+
+instance Monad (Either e) where
+    return        = Right
+    Left e >>=  _ = Left e
+    Right a >>= f = f a
+
+-- Se corresponde con:
+
+instance Applicative (Either e) where
+    pure                = Right
+    Right f <*> Right a = Right (f a)
+    Right f <*> Left e  = Left e
+    Left e <*>          = Left e
+
+-- Pero no con:
+
+instance Monoid e => Applicative (Either e) where
+    pure                = Right
+    Right f <*> Right a = Right (f a)
+    Left e  <*> Right _ = Left e
+    Right _ <*> Left e  = Left e
+    Left e  <*> Left e' = Left (e `mappend` e')
+
+\end{lstlisting}
+
+\subsubsection{Applicative no monádico}
+
+La instancia anterior de \imp{\texttt{Applicative}} para \imp{\texttt{Either}} \emph{no} es una mónada.
+
+\begin{lstlisting}
+instance Monoid e => Monad (Either e) where
+    return       = Right
+    Left e >>= f = ??
+    ...
+\end{lstlisting}
+
+\begin{itemize}
+\item No podemos aplicar f en este caso porque solo se aplica cuando la primera computación retorna un valor \imp{\texttt{Right} a}
+\item Esto no ocurre en la instancia de \imp{\texttt{Applicative}}
+\end{itemize}
+
+\subsubsection{Diferencia entre functores aplicativos y mónadas}
+
+La diferencia entre se puede apreciar en los siguientes operadores condicionales:
+
+\begin{lstlisting}
+ifM :: Monad m => m Bool -> m a -> m a -> m a
+ifM mb mt me = do b <- mb
+                  if b then mt else me
+\end{lstlisting}
+No todas computaciones se ejecutan (se elije entre mt y me), pero en este caso 
+\begin{lstlisting}
+ifA :: Applicative f => f Bool -> f a -> f a -> f a
+ifA fb ft fe = cond <$> fb <*> ft <*> fe
+  where
+    cond b t e = if b then t else e
+\end{lstlisting}
+
+Las tres computaciones (fb, ft y fe) se ejecutan y finalmente se elije uno de los resultados.
+
+\subsection{Mónada de estado}
+
+\begin{lstlisting}
+newtype State s a = State (s -> (a, s))
+
+runState :: State s a -> (s -> (a, s))
+runState (State f) = f
+
+instance Monad (State s) where
+    return a = State $ \s -> (a, s)
+    m >>= f  = State $ \s -> let (a, s') = runState m s
+                             in runState (f a) s'
+\end{lstlisting}
+
+Forma alternativa de escribir la definición de ($\gg=$):
+
+\begin{lstlisting}
+(State g) >>= f = State $ \s -> let (a, s') = g s
+                                    State k = f a
+                                in k s'
+\end{lstlisting}
+
+\subsubsection{Funciones sobre estado}
+
+\begin{lstlisting}
+get :: State s s
+get = State $ \s -> (s, s)
+
+put :: s -> State s ()
+put s = State $ \_ -> ((), s)
+
+modify :: (s -> s) -> State s ()
+modify f = get >>= \s -> put (f s)
+
+evalState :: State s a -> s -> a
+evalState m s = fst $ runState m s
+
+execState :: State s a -> s -> s
+execState m s = snd $ runState m s
+\end{lstlisting}
+
+\subsubsection{Ejemplo: Contar número de sumas en una expresión}
+
+\begin{lstlisting}
+tick :: State Int ()
+tick = modify (+1)
+
+evalS :: Expr -> State Int Int
+evalS (Val n)    = return n
+evalS (Add e e') = do a <- evalS e
+                        b <- evalS e'
+                        tick
+                        return (a + b)
+
+nroSumas e = execState (evalS e) 0
+\end{lstlisting}
+
+\newpage
+
+\subsection{Evaluador con variables}
+
+\begin{lstlisting}
+data Expr = Val Int
+          | Add Expr Expr
+          | Var ID         -- variables
+          | Assign ID Expr -- asignación
+
+eval :: Expr -> State (Map ID Int) Int
+eval (Val n)      = return n
+eval (Add e e )   = do a <- eval e
+                       b <- eval e 0
+                       return (a + b)
+eval (Var v )     = do s <- get
+                       return (fromJust $ lookup v s)
+eval (Assign v e) = do a <- eval e
+                       s <- get
+                       put (insert v a s)
+                       return a
+\end{lstlisting}
+
+\subsection{Mónada de estado, otra implementación}
+
+\begin{lstlisting}
+class Monad m -> MonadState s m | m -> s where
+    get :: m s
+    put :: s -> m ()
+
+modify :: MonadState s m => (s -> s) -> m ()
+modify f = do s <- get
+              put (f s)
+
+instance MonadState s (State s) where
+    get   = State $ \s -> (s, s)
+    pu    t s = State $ \_ -> ((), s)
+\end{lstlisting}
+
+\subsection{Mónada Lista}
+
+\begin{lstlisting}
+instance Monad [] where
+return x = [x]
+xs >>= f = [y | x <- xs, y <- f x]
+            -- concat (map f xs)
+\end{lstlisting}
+
+Ejemplo: Suma de todos los pares de valores de dos listas
+
+\begin{lstlisting}
+sumnd :: Num a => [a] -> [a] -> [a]
+sumnd xs ys = do x <- xs
+                 y <- ys
+                 return (x + y)
+                 
+-- Luego, 
+-- >> sumnd [1,3] [4, 7]
+--    [5, 8, 7, 10]     
+\end{lstlisting}
+
+\section{Parsers Monádicos}\label{sec:parsers_monadicos}
+
+\subsection{Mónada de Parsing}
+
+\begin{lstlisting}
+newtype Parser a = P (String -> [(a, String)])
+
+runP :: Parser a -> String -> [(a, String)]
+runP (P p) = p
+
+instance Monad Parser where
+return a    = P $ \cs -> [(a, cs)]
+(P p) >>= f = P $ \cs ->
+                  concat [runP (f a) cs' | (a, cs') <- p cs]
+\end{lstlisting}
+
+\subsection{Parsing: cobinadores básicos}
+
+\begin{lstlisting}
+pFail :: Parser a
+pFail = P $ \cs -> []
+
+item :: Parser Char
+item = P $ \cs -> case cs of 
+    ""     -> []
+    (c:cs) -> [(c, cs)]
+
+pSat :: (Char -> Bool) -> Parser Char
+pSat p = do c <- item
+            if p c then return c else pFail
+
+pSym :: Char -> Parser Char
+pSym c = pSat (== c)
+\end{lstlisting}
+
+\imp{Definición}: Llamammos \imp{section} a una función que conoce su segundo argumento pero no el primero.
+
+\subsection{Parsing: Alternativa}
+
+\begin{lstlisting}
+(<|>) :: Parser a -> Parser a -> Parser a
+(P p) <|> (P q) = P $ \cs -> p cs ++ q cs
 
 
+-- Otra forma de definir el operador de alternativa:
 
+(P p) <|> (P q) = P $ \cs -> case p cs ++ q cs of
+                                 []       -> []
+                                 (x : xs) -> [x]
+\end{lstlisting}
 
+\newpage
 
+\subsection{Parsing: many y some}
 
+\begin{lstlisting}
+-- p* (many) cero o más veces p
 
+pList :: Parser a -> Parser [a]
+pList p = do a <- p
+             as <- pList p
+             return (a:as)
+             <|>
+             return []
 
+-- p+ (some) una o más veces p
 
+pListP :: Parser a -> Parser [a]
+pListP p = do a <- p
+              as <- pList p
+              return (a:as)
+\end{lstlisting}
+
+\subsubsection{Ejemplo: digits}
+
+\begin{lstlisting}
+digit :: Parser Int
+digit = do c <- pSat isDigit
+           return (ord c - ord '0')
+
+isDigit c = (c >= '0') && (c <= '9')
+
+digits :: Parser [Int]
+digits = pListP digit
+
+sumDigits :: Parser Int
+sumDigits = do ds <- digits
+               return (sum ds)
+\end{lstlisting}
+
+\subsubsection{Ejemplo: number}
+
+\begin{lstlisting}
+number :: Parser Int
+number = do d <- digit
+            number' d
+
+number' :: Int -> Parser Int
+number' n = do d <- digit
+               number' (n * 10 + d)
+            <|>
+            return n
+
+-- Esto equivale a la siguente definición:
+
+number = do (d:ds) <- digits
+            return (foldl (𐃏) d ds)
+  where
+    n 𐃏 d = n * 10 + d
+\end{lstlisting}
+
+\newpage
+
+\subsection{Parser para expresiones}
+
+Queremos parsear una expresión y retornar el correspondiente árbol
+de sintaxis abstracta (AST) de tipo:
+
+\begin{lstlisting}
+data Expr = Val Int | Add Expr Expr
+
+-- Que tal este parser?
+
+expr :: Parser Expr
+expr = do e1 <- expr
+         pSym '+'
+         e2 <- expr
+         return (Add e1 e2)
+       <|>
+       do n <- number
+          return (Val n)
+\end{lstlisting}
+
+\imp{Nota}: Diverge! La recursividad a la izquierda hace que entre en loop.
+
+Para eliminar la recursión a la izquierda debemos basarnos en la
+siguiente gramática:
+\begin{center}
+\texttt{e ::= n + e | n}
+\end{center}
+\indent \indent El parser queda entonces de la siguiente forma:
+\begin{lstlisting}
+expr :: Parser Expr
+expr = do n <- number
+          pSym '+'
+          e <- expr
+          return (Add (Val n) e)
+       <|>
+       do n <- number
+          return (Val n)
+\end{lstlisting}
+
+\section{Parsing y evaluación de expresiones}
+
+\begin{lstlisting}
+evalExpr = do e <- expr
+              return (eval e)
+\end{lstlisting}
+Es posible fusionar las definiciones de eval y expr y obtener una definición de evalExp que computa directamente el valor de la expresión parseada sin generar el AST intermedio:
+\begin{lstlisting}
+evalExpr :: Parser Int
+evalExpr = do n <- number
+              pSym '+'
+              m <- evalExpr
+              return (n + m)
+           <|>
+           number
+\end{lstlisting}
+
+\newpage
+
+\section{Parser de un nano XML}
+
+\begin{lstlisting}
+data XML = Tag Char [XML]
+
+xml :: Parser XML
+xml = do -- se parsea el tag de apertura
+         pSym '<'
+         name <- item
+         pSym '>'
+            -- se parsea la lista de XMLs internos
+         xmls <- pList xml
+            -- se parsea el tag de cierre
+         pSym '<'
+         pSym '/'
+         pSym name -- se utiliza nombre del tag de apertura
+         pSym '>'
+         return (Tag name xmls)
+\end{lstlisting}
 
 \end{document}
