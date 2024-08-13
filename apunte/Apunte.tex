@@ -671,7 +671,7 @@ pParens p = pSym '(' *> p <* pSym ')'
 \end{lstlisting}
 \section{Functor}\label{sec:functor}
 
-\noindent Un \imp{functor} puede entenderse como un constructor de tipo \texttt{f :: * $\rightarrow$ *} junto a una función de tipo 
+\noindent Un \imp{functor} puede entenderse como un constructor de tipo \texttt{f :: * $\rightarrow$ *} (se lee como de \emph{aster} en \emph{aster}, representa el tipo del tipo) junto a una función de tipo 
 \[(a  \rightarrow b) \rightarrow f~a \rightarrow f~b\]
 que permite mapear/reemplazar los valores de tipo \imp{\texttt{a}} contenidos en una estructura de tipo \imp{\texttt{f a}} por valores de tipo \imp{\texttt{b}}. En Haskell el concepto de functor es capturado por una clase:
 
