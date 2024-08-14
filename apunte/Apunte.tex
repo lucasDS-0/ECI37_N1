@@ -71,7 +71,7 @@
     literate=
     {á}{{\'a}}1 {é}{{\'e}}1 {í}{{\'i}}1 {ó}{{\'o}}1 {ú}{{\'u}}1
     {Á}{{\'A}}1 {É}{{\'E}}1 {Í}{{\'I}}1 {Ó}{{\'O}}1 {Ú}{{\'U}}1
-    {ñ}{{\~n}}1 {𐃏}{{$\oplus$}}1
+    {ñ}{{\~n}}1 {𐃏}{{$\oplus$}}1 {∀}{{$\forall$}}1
 }
 
 
@@ -1767,5 +1767,337 @@ instance Eval Bool where
                              then weval (E e1)
                              else weval (E e2)
 \end{lstlisting}
+
+\section{Tipos de Datos Algebráicos Generalizados (GADTs)}
+
+\subsection{Tipo de Dato Algebráico}
+
+\begin{lstlisting}
+data Tree a = Leaf a
+            | Node (Tree a) (Tree a)
+\end{lstlisting}
+
+o alternativamente,
+\begin{lstlisting}
+data Tree :: * -> * where
+    Leaf :: Tree a
+    Node :: Tree a -> a -> Tree a -> Tree a
+\end{lstlisting}
+introduce:
+\begin{itemize}
+\item Un nuevo tipo de datos \imp{Tree} de kind \texttt{* -> *}
+\item Constructores \imp{Leaf} y \imp{Node}
+\item La posibilidad de usar los constructores en patterns 
+\end{itemize}
+
+\subsubsection{Restricciones}
+
+Los constructores de un tipo de datos \imp{T} deben:
+
+\begin{itemize}
+\item Resultar en el tipo \imp{T}
+\item Resultar en un tipo simple: \texttt{\imp{T} a1 ... an} con \texttt{a1 , ..., an} variables de tipo distintas
+\end{itemize}
+
+Vamos a levantar alguna de estas restricciones.
+
+\subsection{Deep Embedding Untyped}
+
+\begin{lstlisting}
+data Expr :: * where
+    Val    :: Int -> Expr
+    Add    :: Expr -> Expr -> Expr
+    IsZero :: Expr -> Expr
+    If     :: Expr -> Expr -> Expr -> Expr
+\end{lstlisting}
+
+Por ejemplo, podemos escribir:
+
+\begin{lstlisting}
+If (IsZero (Add (Int 0) (Int 1))) (Val 3) (Val 4)
+\end{lstlisting}
+
+que representa la sintaxis abstracta de la siguiente expresión escrita
+en una sintaxis concreta:
+
+\begin{lstlisting}
+if isZero (0 + 1) then 3 else 4
+\end{lstlisting}
+Pero podemos escribir también térmimos \imp{mal tipados} de acuerdo al
+sistema de tipos del EDSL.
+
+\subsection{Deep Embedding Tipado}
+
+La idea es codificar el tipo del término que se representa en el propio tipo Haskell.
+
+\begin{lstlisting}
+data Expr :: * where
+    Val    :: Int -> Expr
+    Add    :: Expr -> Expr -> Expr
+    IsZero :: Expr -> Expr
+    If     :: Expr -> Expr -> Expr -> Expr
+    
+data Expr :: * -> * where
+    Val    :: Int -> Expr Int
+    Add    :: Expr Int -> Expr Int -> Expr Int
+    IsZero :: Expr Int -> Expr Bool
+    If     :: Expr Bool -> Expr t -> Expr t -> Expr t
+\end{lstlisting}
+
+\subsection{GADTs}
+
+Los GADTs levantan la restricción de que los constructores deben resultar en un tipo simple.
+
+\begin{itemize}
+\item Los constructores pueden resultar en un subconjunto del tipo
+\item Consecuencias interesantes en el pattern matching
+\begin{itemize}
+\item cuando se analiza un \imp{Expr Int}, éste no puede ser construido por \imp{IsZero}
+\item cuando se analiza un \imp{Expr Bool}, éste no puede ser construido
+por \imp{Val} o \imp{Add}
+\item cuando se analiza un \imp{Expr Bool}, si encontramos \imp{IsZero} en el
+pattern, sabemos que tenemos un \imp{Expr Bool}
+\item etc
+\end{itemize}
+\end{itemize}
+
+\subsection{Evaluación usando GADSTs: evaluador tagless}
+
+\begin{lstlisting}
+eval :: Expr t -> t
+eval (Val n)      = n
+eval (Add e1 e2)  = eval e1 + eval e2
+eval (IsZero e)   = eval e == 0
+eval (If c e1 e2) = if eval c then eval e1 else eval e2
+\end{lstlisting}
+
+\begin{itemize}
+\item No hay posibilidad de fallos en tiempo de ejecución (salvo $\bot$)
+\item No se requieren tags
+\item El pattern matching sobre un GADT requiere signatura de tipo
+\end{itemize}
+
+\subsubsection{GADTs incluyen existenciales}
+
+Si extendemos el lenguaje con la construcción y proyección de
+pares:
+
+\begin{lstlisting}
+data Expr :: * -> * where
+    Val    :: Int -> Expr Int
+    Add    :: Expr Int -> Expr Int -> Expr Int
+    IsZero :: Expr Int -> Expr Bool
+    If     :: Expr Bool -> Expr t -> Expr t -> Expr t
+    Pair   :: Expr a -> Expr b -> Expr (a, b)
+    Fst    :: Expr (a, b) -> Expr a
+    Snd    :: Expr (a, b) -> Expr b
+\end{lstlisting}
+
+Para \imp{Fst} y \imp{Snd} se esconde el tipo del componente no proyectado.
+Es como tener un tipo existencial:
+
+\begin{lstlisting}
+data Expr a = ... | ∀ b.Fst (Expr (a, b))
+\end{lstlisting}
+
+\subsection{Ejemplo: vectores}
+
+Un vector es una lista con largo:
+
+\begin{lstlisting}
+data Vec a n where
+    Nil  :: Vec a Zero
+    Cons :: a -> Vec a n -> Vec a (Succ n)
+\end{lstlisting}
+Los números naturales los vamos a codificar como tipos vacíos:
+\begin{lstlisting}
+data Zero
+data Succ a
+\end{lstlisting}
+De esta forma, en el tipo del vector tenemos codificado su largo:
+\begin{lstlisting}
+Nil                 :: Vec Int Zero
+Cons 3 Nil          :: Vec Int (Succ Zero)
+Cons 2 (Cons 3 Nil) :: Vec Int (Succ (Succ Zero))
+\end{lstlisting}
+
+\subsubsection{\texttt{head} y \texttt{tail}}
+
+Las definiciones de head y tail son ahora seguras:
+
+\begin{lstlisting}
+head :: Vec a (Succ n) -> a
+head (Cons x xs) = x
+
+tail :: Vec a (Succ n) -> Vec a n
+tail (Cons x xs) = xs
+\end{lstlisting}
+
+El caso Nil es excluído porque no satisface el requerimiento de que la lista de entrada tenga largo mayor que cero. Por lo tanto, las expresiones:
+
+\begin{lstlisting}
+head Nil
+tail Nil
+\end{lstlisting}
+
+resultan en un error de tipo.
+
+\subsubsection{Funciones sobre vectores}
+
+\begin{lstlisting}
+map :: (a -> b) -> Vec a n -> Vec b n
+map f Nil         = Nil
+map f (Cons x xs) = Cons (f x) (map f xs)
+
+zipWith :: (a -> b -> c) -> Vec a n -> Vec b n -> Vec c n
+zipWith f Nil         Ni          = Nil
+zipWith f (Cons x xs) (Cons y ys) = Cons (f x y ) (zipWith f xs ys)
+\end{lstlisting}
+La función zipWith requiere que los vectores tengan el mismo largo
+
+\begin{lstlisting}
+snoc :: Vec a n -> a -> Vec a (Succ n)
+snoc Nil         y = Cons y Nil
+snoc (Cons x xs) y = Cons x (snoc xs y )
+
+reverse :: Vec a n -> Vec a n
+reverse Nil         = Nil
+reverse (Cons x xs) = snoc (reverse xs) x
+\end{lstlisting}
+
+\subsubsection{Concatenación de vectores}
+
+\begin{lstlisting}
+(++) :: Vec a m -> Vec a n -> Vec a (m 𐃏 n)
+\end{lstlisting}
+Podemos calcular m $\oplus$ n de la siguiente manera:
+\begin{itemize}
+\item construir \imp{evidencia explícita}
+\item utilizar una \imp{type family} (función a nivel de tipos)
+\end{itemize}
+
+\subsection{Evidencia explícita}
+
+Codificar la suma como otro GADT:
+
+\begin{lstlisting}
+data Sum m n s where
+    SumZero :: Sum Zero n n
+    SumSucc :: Sum m n s -> Sum (Succ m) n (Succ s)
+
+appV :: Sum m n s -> Vec a m -> Vec a n -> Vec a s
+appV SumZero     Nil         ys = ys
+appV (SumSucc p) (Cons x xs) ys = Cons x (appV p xs ys)
+\end{lstlisting}
+Desventaja: tenemos que construir la evidencia a mano
+
+\subsection{Type Family}
+
+\begin{lstlisting}
+type family (m :: *) :+: (n :: *) :: * 
+type instance Zero     :+: n = n
+type instance (Succ m) :+: n = Succ (m :+: n)
+
+(++) :: Vec a m -> Vec a n -> Vec a (m :+: n)
+Nil       ++ ys = ys
+Cons x xs ++ ys = Cons x (xs ++ ys)
+\end{lstlisting}
+
+\subsubsection{Convertir entre listas y vectores}
+
+Sin problemas se puede hacer:
+\begin{lstlisting}
+toList :: Vec a n -> [a]
+toList Nil         = []
+toList (Cons x xs) = x : toList xs
+\end{lstlisting}
+Pero esto no funciona:
+\begin{lstlisting}
+fromList :: [a] -> Vec a n
+fromList []     = Nil
+fromList (x:xs) = Cons x (fromList xs)
+\end{lstlisting}
+El tipo dice que el resultado tiene que ser polimórfico en n, pero no lo es. Para lograrlo se puede
+
+\begin{itemize}
+\item Especificar el largo
+
+Los números naturales al nivel de los tipos los reflejamos al nivel de los valores usando un tipo singleton.
+\begin{lstlisting}
+data SNat n where
+    Zero :: SNat Zero
+    Succ :: SNat n -> SNat (Succ n)
+\end{lstlisting}
+\imp{\texttt{SNat n}} tiene solo un valor por cada \texttt{n}:
+\begin{lstlisting}
+Zero             :: SNat Zero
+Succ Zero        :: SNat (Succ Zero)
+Succ (Succ Zero) :: SNat (Succ (Succ Zero))
+\end{lstlisting}
+Conociendo el largo de antemano:
+\begin{lstlisting}
+fromList :: SNat n -> [a] -> Vec a n
+fromList Zero []         = Nil
+fromList (Succ n) (x:xs) = Cons x (fromList n xs)
+fromList _        _      = error "wrong length!"
+\end{lstlisting}
+\item Esconder el largo usando un tipo existencial
+
+\begin{lstlisting}
+data VecAny a where
+    VecAny :: Vec a n -> VecAny a
+
+fromList :: [a] -> VecAny a
+fromList []     = VecAny Nil
+fromList (x:xs) = case fromList xs of
+                      VecAny ys -> VecAny (Cons x ys)
+\end{lstlisting}
+También podemos combinar ambas ideas e incluir un \imp{SNat} en el
+tipo:
+\begin{lstlisting}
+data VecAny a where
+    VecAny :: SNat n -> Vec a n -> VecAny a
+\end{lstlisting}
+\end{itemize}
+
+\subsection{Reflexión de tipos}
+
+Mediante el uso de un GADT que refleje (represente) tipos:
+\begin{lstlisting}
+data Type t where
+    RInt  :: Type Int
+    RChar :: Type Char
+    RList :: Type a -> Type [a]
+    RPair :: Type a -> Type b -> Type (a, b)
+
+\end{lstlisting}
+es posible escribir \imp{funciones genéricas} (\imp{type-indexed functions}) de
+tipo
+\begin{lstlisting}
+f :: Type a -> ... a ...
+\end{lstlisting}
+que hagan recursión en la representación de los tipos.
+
+\subsubsection{Ejemplo: función de compresión}
+
+Queremos comprimir valores de tipos representados en Type.
+\begin{lstlisting}
+data Bit = 0 | 1
+
+compress :: Type t -> t -> [Bit]
+compress (RInt) i            = compressInt i
+compress (RChar) c           = compressChar c
+compress (RList ra) []       = 0 : []
+compress (RList ra) (a : as) = 1 : compress ra a ++ 
+                                   compress (RList ra) as
+compress (RPair ra rb) (a, b) = compress ra a ++ compress rb b
+\end{lstlisting}
+\indent \indent donde
+\begin{lstlisting}
+compressInt :: Int -> [Bit]
+compressChar :: Char -> [Bit]
+\end{lstlisting}
+
+son compresores para valores de \imp{Int} y \imp{Char}.
 
 \end{document}
