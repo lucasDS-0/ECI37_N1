@@ -1289,8 +1289,8 @@ runP :: Parser a -> String -> [(a, String)]
 runP (P p) = p
 
 instance Monad Parser where
-return a    = P $ \cs -> [(a, cs)]
-(P p) >>= f = P $ \cs ->
+    return a    = P $ \cs -> [(a, cs)]
+    (P p) >>= f = P $ \cs ->
                   concat [runP (f a) cs' | (a, cs') <- p cs]
 \end{lstlisting}
 
@@ -1467,6 +1467,305 @@ xml = do -- se parsea el tag de apertura
          pSym name -- se utiliza nombre del tag de apertura
          pSym '>'
          return (Tag name xmls)
+\end{lstlisting}
+
+\section{Intérpretes Tagless-Final}
+
+\noindent \imp{Tagless-final} es una técnica de tipo \imp{shallow embedding} para embeber lenguajes y sus interpretaciones.
+
+\
+
+Defino el lenguaje como una \imp{clase} que contiene sus constructores:
+
+\begin{lstlisting}
+class Expr e where
+    val :: Int -> e
+    add :: e -> e -> e
+
+expr 1 :: Expr e => e
+expr 1 = add (val 8) (add (add (val 2) (val 1)) (val 4))
+\end{lstlisting}
+
+\subsection{Intérpretes}
+
+\noindent Defino las interpretaciones como \imp{instancias} de la clase
+
+\
+
+Evaluación:
+\begin{lstlisting}
+data Eval = E Int
+
+instance Expr Eval where
+    val x           = E x
+    add (E x) (E y) = E (x + y)
+\end{lstlisting}
+
+Pretty-printing:
+\begin{lstlisting}
+data PP = P String
+
+instance Expr PP where
+    val x           = P (show x)
+    add (P x) (P y) = P ("(" ++ x ++ "+" ++ y ++ ")")
+\end{lstlisting}
+No necesito \imp{observadores}.
+
+\subsection{Extensiones al lenguaje}
+
+Puedo \imp{extender} el lenguaje definiendo nuevas clases
+
+\begin{lstlisting}
+class ExprMult e where
+    mult :: e -> e -> e
+    
+expr 2 :: (Expr e, ExprMult e) => e
+expr 2 = add (mult expr 1 (val 4)) (val 2)
+\end{lstlisting}
+
+
+Definiendo sus interpretaciones
+\begin{lstlisting}
+instance ExprMult Eval where
+    mult (E x) (E y) = E (x * y)
+
+instance ExprMult PP where
+    mult (P x) (P y) = P ("(" ++x ++ "*" ++ y ++ ")")
+\end{lstlisting}
+
+\subsection{Lenguajes Tipados - Tagged}
+
+Si tenemos un lenguaje con distintos \imp{tipos}
+
+\begin{lstlisting}
+class Expr e where
+    val    :: Int -> e
+    add    :: e -> e -> e
+    isZero :: e -> e
+    ifE    :: e -> e -> e -> e
+\end{lstlisting}
+¿Cómo resolvemos los problemas de tipado?
+
+\
+
+Podriaamos definir funciones \imp{parciales}, o implementar el \imp{type-checking} en el evaluador 
+
+\begin{lstlisting}
+data Res = RI Int | RB Bool -- versión Tagged
+instance Expr Res where
+    val x             = RI x
+    add (RI x) (RI y) = RI (x + y)
+    isZero (RI x)     = RB (x == 0)
+    ifE (RB c) (RI x) (RI y) = RI $ if c then x else y
+    ifE (RB c) (RB x) (RB y) = RB $ if c then x else y
+\end{lstlisting}
+
+\subsection{Lenguajes Tipados - Tagless}
+
+O podemos codificar el \imp{sistema de tipos} del lenguaje en la clase:
+
+\begin{lstlisting}
+class TExpr e where
+    valT    :: Int -> e Int
+    addT    :: e Int -> e Int -> e Int
+    isZeroT :: e Int -> e Bool
+    ifT     :: e Bool -> e t -> e t -> e t
+\end{lstlisting}
+
+y usar el sistema de tipos del lenguaje anfitrión para chequearlo:
+
+\begin{lstlisting}
+exprT :: TExpr e => e Int
+exprT = ifT (isZeroT (valT 2)) (valT 2) (valT 3)
+
+exprWrong = ifT (valT 1) (valT 2) (valT 3) -- no compila
+\end{lstlisting}
+
+\subsection{Intérpretes Tipados}
+
+Ahora los intérpretes pueden usar la información del buen tipado
+
+\begin{lstlisting}
+data TEval t = TE t
+
+instance TExpr TEval where
+    valT x             = TE x
+    addT (TE x) (TE y) = TE (x + y)
+    isZeroT (TE x)     = TE (x == 0)
+    ifT (TE c) (TE x) (TE y) = TE (if c then x else y)
+\end{lstlisting}
+
+o ignorarla a través de un \imp{phantom type}
+
+\begin{lstlisting}
+data TPP a = TP String
+instance TExpr TPP where
+    valT x             = TP (show x)
+    addT (TP x) (TP y) = TP ("(" ++ x ++ "+" ++ y ++ ")")
+    isZeroT (TP x)     = TP ("isZero(" ++ x ++ ")")
+    ifT (TP c) (TP x) (TP y) = TP ("if " ++ c ++
+                                   " then " ++ x ++
+                                   " else " ++ y)
+\end{lstlisting}
+
+
+\section{Deep Embeeding de Lenguajes Tipados}
+
+\noindent Volviendo al lenguaje con distintos \imp{tipos}, pero ahora como \imp{deep embedding}
+
+\begin{lstlisting}
+data Expr :: * where
+    Val    :: Int -> Expr
+    Add    :: Expr -> Expr -> Expr
+    IsZero :: Expr -> Expr
+    If     :: Expr -> Expr -> Expr -> Expr
+\end{lstlisting}
+
+\subsection{Evaluador con type-cheking}
+
+Evaluador \imp{parcial}, o con type-checking dinámico
+\begin{lstlisting}
+data Res = RI Int | RB Bool
+
+eval :: Expr -> Res
+eval (Val n)       = RI n
+eval (Add e1 e2)   = case (eval e1, eval e2) of
+                         (RI n1, RI n2) -> RI (n1 + n2)
+                         _              -> error "type error: Add"
+eval (IsZero e)    = case eval e of
+                         RI n -> RB (n == 0)
+                         _    -> error "type error: IsZero"
+eval (If e1 e2 e3) = 
+    case eval e1 of
+        RB b -> case (eval e2, eval e3) of
+                    (RI n2, RI n3) -> RI $ if b then n2 else n3
+                    (RB b2, RB b3) -> RB $ if b then b2 else b3
+                    _              -> error "type error: If branches"
+        _    -> error "type error: If condition"
+\end{lstlisting}
+
+\newpage
+
+\subsection{Type-checking}
+
+\imp{\emph{Nota}}. \texttt{.::} denota la composición de tipos, y el \texttt{infix} el orden de precedencia del operador.
+
+Podría \imp{desacoplar} el type-checking de la evaluación
+\begin{lstlisting}
+data EType = TInt | TBool
+
+infix 6 .::
+
+(.::) :: Expr -> EType -> Bool
+(Val n)      .:: TInt  = True
+(Add e1 e2)  .:: TInt  = e1 .:: TInt && e2 .:: TInt
+(IsZero e)   .:: TBool = e .:: TInt
+(If c e1 e2) .:: t     = c .:: TBool && e1 .:: t && e2 .:: t
+_            .:: _     = False
+
+wellTyped :: Expr -> Bool
+wellTyped e = e .:: TInt || e .:: TBool
+\end{lstlisting}
+
+y sólo evaluar en caso de tipar correctamente
+
+\begin{lstlisting}
+safeEval :: Expr -> Res
+safeEval e | wellTyped e = eval e
+           | otherwise   = error "type error"
+\end{lstlisting}
+
+\subsection{Tagless - Deep Embedding (Initial)}
+
+Podemos usar el enfoque \imp{tagless} para que el sistema de tipos del lenguaje anfitrión realice el type-checking
+\begin{lstlisting}
+class ExprT (e :: * -> *) where
+    valT    :: Int -> e Int
+    addT    :: e Int -> e Int -> e Int
+    isZeroT :: e Int -> e Bool
+    ifT     :: e Bool -> e t -> e t -> e t
+\end{lstlisting}
+
+Necesito empaquetar Expr en un \texttt{* -> *} con un \imp{phantom type}
+
+\begin{lstlisting}
+newtype WExpr a = E Expr
+
+instance ExprT WExpr where
+    valT n                  = E (Val n)
+    addT (E e1) (E e2)      = E (Add e1 e2)
+    isZeroT (E e)           = E (IsZero e)
+    ifT (E c) (E e1) (E e2) = E (If c e1 e2)
+\end{lstlisting}
+
+\subsection{Intérpretes Tipados}
+
+Puedo definir un observador como pretty-printing sin problemas
+
+\begin{lstlisting}
+ppExpr (E (Val n)) = show n
+ppExpr (E (Add e1 e2)) = "(" ++ ppExpr (E e1) ++ "+"
+                             ++ ppExpr (E e2) ++ ")"
+ppExpr (E (IsZero e)) = "isZero(" ++ ppExpr (E e) ++ ")"
+ppExpr (E (If c e1 e2)) = "if " ++ ppExpr (E c) ++ 
+                          " then " ++ ppExpr (E e1) ++ 
+                          " else " ++ ppExpr (E e2)
+\end{lstlisting}
+
+Pero no puedo definir algo como
+
+\begin{lstlisting}
+evalExpr (E (Val n))      = n
+evalExpr (E (IsZero e))   = evalExpr (E e) == 0
+evalExpr (E (Add e1 e2))  = evalExpr (E e1) + evalExpr (E e2)
+evalExpr (E (If c e1 e2)) = if evalExpr (E c)
+                            then evalExpr (E e1)
+                            else evalExpr (E e2)
+                            
+Couldn't match expected type 'Int' with actual type 'Bool'
+In the expression: evalExpr (E e) == 0
+...
+\end{lstlisting}
+
+Tampoco puedo definir
+
+\begin{lstlisting}
+evalExpr :: WExpr t -> t
+evalExpr (E (Val n))      = n
+evalExpr (E (IsZero e))   = evalExpr (E e) == 0
+evalExpr (E (Add e1 e2))  = evalExpr (E e1) + evalExpr (E e2)
+evalExpr (E (If c e1 e2)) = if evalExpr (E c)
+                            then evalExpr (E e1)
+                            else evalExpr (E e2)
+                            
+Couldn't match expected type 't' with actual type 'Int'
+'t' is a rigid type variable bound by
+  the type signature for:
+    evalExpr :: forall t. WExpr t -> t
+...
+In the expression: n
+  In an equation for 'evalExpr': evalExpr (E (Val n)) = n
+...
+\end{lstlisting}
+
+Se puede definir un workaround usando type-clases
+
+\begin{lstlisting}
+class Eval t where
+    weval :: WExpr t -> t
+
+instance Eval Int where
+    weval (E (Val n))      = n
+    weval (E (Add e1 e2))  = weval (E e1) + weval (E e2)
+    weval (E (If c e1 e2)) = if weval (E c) 
+                             then weval (E e1) 
+                             else weval (E e2)
+
+instance Eval Bool where
+    weval (E (IsZero e))   = (weval (E e) :: Int) == 0
+    weval (E (If c e1 e2)) = if weval (E c) 
+                             then weval (E e1)
+                             else weval (E e2)
 \end{lstlisting}
 
 \end{document}
