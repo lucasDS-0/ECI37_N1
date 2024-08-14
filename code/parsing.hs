@@ -1,3 +1,5 @@
+{-# LANGUAGE GADTs, KindSignatures #-}
+
 module Parsing where
 
 import Prelude hiding ((<*>),(<$>),(<*),(*>),(<$))
@@ -85,5 +87,19 @@ number = horner <$> digits
 
 horner = foldl (\n d -> n*10 + d) 0
 
+data Expr = Val Int | Add Expr Expr 
+  deriving Show 
+
+eval (Val n) = n 
+eval (Add e1 e2) = eval e1 + eval e2  
+
+-- expr  :: Parser Char Expr
+expr  = (\n _ e -> Add (Val n) e) <$> number <*> pSym '+' <*> expr
+        <|>
+        Val <$> number
+
+evalExpr = (\n _ e -> n+e) <$> number <*> pSym '+' <*> evalExpr
+        <|>
+        number
 
 

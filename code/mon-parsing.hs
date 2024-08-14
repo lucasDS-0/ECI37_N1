@@ -100,8 +100,8 @@ number' n = do d <- digit
 
 -- | otra forma (en 2 pasos)
 
-numberFoldl = do (d:ds) <- digits
-                 return (foldl accum d ds)
+numberFoldl = do ds <- digits
+                 return (foldl accum 0 ds)
   where
     accum n d = n*10 + d  
 
