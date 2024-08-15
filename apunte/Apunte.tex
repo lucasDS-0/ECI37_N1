@@ -1852,8 +1852,8 @@ Los GADTs levantan la restricción de que los constructores deben resultar en un
 \item Los constructores pueden resultar en un subconjunto del tipo
 \item Consecuencias interesantes en el pattern matching
 \begin{itemize}
-\item cuando se analiza un \imp{Expr Int}, éste no puede ser construido por \imp{IsZero}
-\item cuando se analiza un \imp{Expr Bool}, éste no puede ser construido
+\item cuando se analiza un \imp{Expr Int}, este no puede ser construido por \imp{IsZero}
+\item cuando se analiza un \imp{Expr Bool}, este no puede ser construido
 por \imp{Val} o \imp{Add}
 \item cuando se analiza un \imp{Expr Bool}, si encontramos \imp{IsZero} en el
 pattern, sabemos que tenemos un \imp{Expr Bool}
@@ -1861,7 +1861,7 @@ pattern, sabemos que tenemos un \imp{Expr Bool}
 \end{itemize}
 \end{itemize}
 
-\subsection{Evaluación usando GADSTs: evaluador tagless}
+\subsection{Evaluación usando GADTs: evaluador tagless}
 
 \begin{lstlisting}
 eval :: Expr t -> t
