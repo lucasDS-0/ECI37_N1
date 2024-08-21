@@ -794,7 +794,7 @@ divE x y = case (x,y) of
 \end{itemize}
 Se cumple entonces
 \begin{center}
-\texttt{fmap~f~x = pure~f <*> x}
+\texttt{fmap~f~x = pure~f <*>~x}
 \end{center}
 
 \section{Funciones sobre functores aplicativos}\label{sec:funciones_sobre_functores_aplicativos}
@@ -831,23 +831,23 @@ class Applicative f => Alternative f where
 \begin{lstlisting}
 instance Applicative (Parser s) where
     pure = pSucceed
-    <*> = <*>
+    <*>  = <*>
 
 instance Alternative (Parser s) where
-    empty = pFail
-    <|>   = <|>
-    many = pList
+    empty  = pFail
+    <|>    = <|>
+    many   = pList
     some p = (:) <$> p <*> pList p
 \end{lstlisting}
 
 donde
 
 \begin{lstlisting}
-pFail :: Parser s a
+pFail   :: Parser s a
 pSuceed :: a -> Parser s a
-<*> :: Parser s (a -> b) -> Parser s a -> Parser s b
-<|> :: Parser s a -> Parser s a -> Parser s a
-pList :: Parser s a -> Parser s [a]
+<*>     :: Parser s (a -> b) -> Parser s a -> Parser s b
+<|>     :: Parser s a -> Parser s a -> Parser s a
+pList   :: Parser s a -> Parser s [a]
 \end{lstlisting}
 
 \subsubsection{Ejemplo: Listas}
@@ -884,7 +884,7 @@ instance Applicative (Either e) where
     pure                = Right
     Right f <*> Right a = Right (f a)
     Right f <*> Left e  = Left e
-    Left e  <*>         = Left e
+    Left e  <*> _       = Left e
 \end{lstlisting}
 
 Otra:
@@ -893,9 +893,9 @@ Otra:
 instance Monoid e -> Applicative (Either e) where
     pure = Right
     Right f <*> Right a  = Right (f a)
-    Left e  <*> Right    = Left e
-    Right   <*> Left e   = Left e
-    Left e  <*> Left e 0 = Left (e `mappend` e 0 )
+    Left e  <*> Right _  = Left e
+    Right _ <*> Left e   = Left e
+    Left e  <*> Left e 0 = Left (e `mappend` e 0)
 \end{lstlisting}
 
 \subsection{Composición}
@@ -945,7 +945,7 @@ eval (Div x y) = case eval x of
                      Nothing -> Nothing
                      Just a  -> case eval y of
                          Nothing -> Nothing 
-                         Just b -> a `divM` b`
+                         Just b -> a `divM` b
 \end{lstlisting}
 
 No puedo representar la división con Functores Aplicativos, necesito el resultado de una computación para determinar el siguiente efecto.
@@ -984,7 +984,7 @@ eval (Add x y) = eval x >>= \a ->
                  return (a+b)
 eval (Div x y) = eval x >>= \a -> 
                  eval y >>= \b -> 
-                 a `dibM` b
+                 a `divM` b
 \end{lstlisting}
 
 \section{La clase Monad}
@@ -1210,9 +1210,9 @@ tick = modify (+1)
 evalS :: Expr -> State Int Int
 evalS (Val n)    = return n
 evalS (Add e e') = do a <- evalS e
-                        b <- evalS e'
-                        tick
-                        return (a + b)
+                      b <- evalS e'
+                      tick
+                      return (a + b)
 
 nroSumas e = execState (evalS e) 0
 \end{lstlisting}
@@ -1229,10 +1229,10 @@ data Expr = Val Int
 
 eval :: Expr -> State (Map ID Int) Int
 eval (Val n)      = return n
-eval (Add e e )   = do a <- eval e
+eval (Add e e)    = do a <- eval e
                        b <- eval e 0
                        return (a + b)
-eval (Var v )     = do s <- get
+eval (Var v)      = do s <- get
                        return (fromJust $ lookup v s)
 eval (Assign v e) = do a <- eval e
                        s <- get
@@ -1253,7 +1253,7 @@ modify f = do s <- get
 
 instance MonadState s (State s) where
     get   = State $ \s -> (s, s)
-    pu    t s = State $ \_ -> ((), s)
+    put s = State $ \_ -> ((), s)
 \end{lstlisting}
 
 \subsection{Mónada Lista}
@@ -1313,7 +1313,7 @@ pSym :: Char -> Parser Char
 pSym c = pSat (== c)
 \end{lstlisting}
 
-\imp{Definición}: Llamammos \imp{section} a una función que conoce su segundo argumento pero no el primero.
+\imp{Definición}: Llamamos \imp{section} a una función que conoce su segundo argumento pero no el primero.
 
 \subsection{Parsing: Alternativa}
 
@@ -1403,9 +1403,9 @@ data Expr = Val Int | Add Expr Expr
 
 expr :: Parser Expr
 expr = do e1 <- expr
-         pSym '+'
-         e2 <- expr
-         return (Add e1 e2)
+          pSym '+'
+          e2 <- expr
+          return (Add e1 e2)
        <|>
        do n <- number
           return (Val n)
