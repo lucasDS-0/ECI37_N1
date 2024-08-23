@@ -9,41 +9,53 @@ data UProp = Or UProp UProp
            | LT UProp UProp 
            | Num Int
 
-prop :: Parser UProp
-prop_par = do term <- prop_par           -- term \/ prop
-              pSmy '\'
-              pSym '/'
-              prop <- prop_par
-              return $ Or term prop
-           <|>
-           do factor <- prop_par         -- factor /\ term
-              pSmy '/'
-              pSym '\'
-              term <- prop_par
-              return $ And factor term  
-           <|>
-           do pSym '~'                   -- ~ prop  
-              prop <- prop_par
-              return $ Neg prop
-           <|>
-           do pSym '('                   -- (prop)
-              prop <- prop_par
-              pSym ')'
-              return $ PA prop
-           <|>
-           do pSym '('                   -- (prop1 = prop2)
-              prop1 <- prop_par
-              pSym '='
-              prop2 <- prop_par
-              pSym ')'
-              return $ EQ prop1 prop2
-           <|>
-           do pSym '('                   -- (prop1 < prop2)
-              prop1 <- prop_par
-              pSym '='
-              prop2 <- prop_par
-              pSym ')'
-              return $ EQ prop1 prop2
-           <|>
-           do n <- number                -- N
-              return $ Num n
+prop_parser :: Parser UProp
+prop_parser = do term <- term_parser          -- term \/ prop
+                 pSmy '\'
+                 pSym '/'
+                 prop <- prop_parser
+                 return $ Or term prop
+              <|>
+              do term <- term_parser
+                 return term
+
+term_parser :: Parser UProp 
+term_parser = do factor <- factor_parser      -- factor /\ term
+                 pSmy '/'
+                 pSym '\'
+                 term <- term_parser
+                 return $ And factor term  
+              <|>
+              do factor <- factor_parser
+                 return factor
+
+factor_parser :: Parser UProp
+factor_parser = do pSym '~'                   -- ~ prop  
+                 prop <- prop_parser
+                 return $ Neg prop
+              <|>
+              do pSym '('                     -- (prop)
+                  prop <- prop_parser
+                  pSym ')'
+                  return $ PA prop
+              <|>
+              do pSym '('                     -- (prop1 = prop2)
+                 prop1 <- prop_parser
+                 pSym '='
+                 prop2 <- prop_parser
+                 pSym ')'
+                 return $ EQ prop1 prop2
+              <|>
+              do pSym '('                     -- (prop1 < prop2)
+                 prop1 <- prop_parser
+                 pSym '='
+                 prop2 <- prop_parser
+                 pSym ')'
+                 return $ EQ prop1 prop2
+              <|>
+              do n <- number                  -- N
+                 return $ Num n
+
+
+
+
