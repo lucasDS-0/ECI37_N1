@@ -4,9 +4,9 @@
 data Expr :: * -> * where
     ValV :: Int -> Expr Int
     NotV :: Expr Bool -> Expr Bool
-    EqV  :: Expr Int -> Expr Int -> Expr Bool
+    EqV  :: Expr Int  -> Expr Int  -> Expr Bool
     AndV :: Expr Bool -> Expr Bool -> Expr Bool
-    LtV  :: Expr Int -> Expr Int -> Expr Bool
+    LtV  :: Expr Int  -> Expr Int  -> Expr Bool
     OrV  :: Expr Bool -> Expr Bool -> Expr Bool
     
 eval :: Expr t -> t

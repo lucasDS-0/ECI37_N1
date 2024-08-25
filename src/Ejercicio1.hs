@@ -1,5 +1,5 @@
 
--- Ejercicio.hs
+-- Ejercicio1.hs
 
 class VExpr e where
     valV :: Int -> e Int
@@ -9,12 +9,14 @@ class VExpr e where
     ltV  :: e Int -> e Int -> e Bool
     orV  :: e Bool -> e Bool -> e Bool
     
-data VVal t = VE t
-
-instance VExpr VVal where
+data VEval t = VE t
+  deriving Show
+  
+instance VExpr VEval where
     valV                 = VE
     notV (VE p)          = VE (not p)
     eqV  (VE p1) (VE p2) = VE (p1 == p2)
     andV (VE p1) (VE p2) = VE (p1 && p2)
     ltV  (VE p1) (VE p2) = VE (p1 < p2)
     orV  (VE p1) (VE p2) = VE (p1 || p2)
+
