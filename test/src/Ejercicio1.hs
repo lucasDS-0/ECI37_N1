@@ -2,11 +2,11 @@
 -- Ejercicio1.hs
 
 class VExpr e where
-    valV :: Int -> e Int
+    valV :: Int    -> e Int
     notV :: e Bool -> e Bool
-    eqV  :: e Int -> e Int -> e Bool
+    eqV  :: e Int  -> e Int  -> e Bool
     andV :: e Bool -> e Bool -> e Bool
-    ltV  :: e Int -> e Int -> e Bool
+    ltV  :: e Int  -> e Int  -> e Bool
     orV  :: e Bool -> e Bool -> e Bool
     
 data VEval t = VE t

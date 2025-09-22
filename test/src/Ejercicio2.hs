@@ -2,7 +2,7 @@
 -- Ejercicio2.hs
 
 data Expr :: * -> * where
-    ValV :: Int -> Expr Int
+    ValV :: Int       -> Expr Int
     NotV :: Expr Bool -> Expr Bool
     EqV  :: Expr Int  -> Expr Int  -> Expr Bool
     AndV :: Expr Bool -> Expr Bool -> Expr Bool

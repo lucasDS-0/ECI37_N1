@@ -22,7 +22,7 @@ instance Monad Parser where
 -- | Parsers primitivos
 
 pFail :: Parser a
-pFail = P $ \cs -> []
+pFail = P $ const []
 
 (<|>) :: Parser a -> Parser a -> Parser a
 (P p) <|> (P q) = P $ \cs -> case p cs ++ q cs of
@@ -68,81 +68,77 @@ data UProp = Or UProp UProp
            | LT UProp UProp 
            | Num Int
 
-p_term_prop :: Parser UProp 
-p_term_prop = do term <- term_parser             -- term \/ prop
-                 pSym '\\'
+pTermProp :: Parser UProp 
+pTermProp = do term <- termParser             -- term \/ prop
+               pSym '\\'
+               pSym '/'
+               prop <- propParser
+               return $ Or term prop
+
+pTerm :: Parser UProp
+pTerm = do term <- termParser                  -- term
+           return term
+
+
+pFactorTerm :: Parser UProp
+pFactorTerm = do factor <- factorParser       -- factor /\ term
                  pSym '/'
-                 prop <- prop_parser
-                 return $ Or term prop
+                 pSym '\\'
+                 term <- termParser
+                 return $ And factor term
 
-p_term :: Parser UProp
-p_term = do term <- term_parser                  -- term
-            return term
+pFactor :: Parser UProp
+pFactor = do factor <- factorParser            -- factor
+             return factor
 
+pNegProp :: Parser UProp
+pNegProp = do pSym '~'                         -- ~ prop  
+              prop <- propParser
+              return $ Neg prop
 
-p_factor_term :: Parser UProp
-p_factor_term = do factor <- factor_parser       -- factor /\ term
-                   pSym '/'
-                   pSym '\\'
-                   term <- term_parser
-                   return $ And factor term
+pParenProp :: Parser UProp
+pParenProp = do pSym '('                       -- (prop)
+                prop <- propParser
+                pSym ')'
+                return $ PA prop
 
-p_factor :: Parser UProp
-p_factor = do factor <- factor_parser            -- factor
-              return factor
+pEqProp :: Parser UProp
+pEqProp = do pSym '('                          -- (prop1 = prop2)
+             prop1 <- propParser
+             pSym '='
+             prop2 <- propParser
+             pSym ')'
+             return $ Eq prop1 prop2
 
-p_neg_prop :: Parser UProp
-p_neg_prop = do pSym '~'                         -- ~ prop  
-                prop <- prop_parser
-                return $ Neg prop
+pLtProp :: Parser UProp
+pLtProp = do pSym '('                          -- (prop1 < prop2)
+             prop1 <- propParser
+             pSym '='
+             prop2 <- propParser
+             pSym ')'
+             return $ Eq prop1 prop2
 
-p_paren_prop :: Parser UProp
-p_paren_prop = do pSym '('                       -- (prop)
-                  prop <- prop_parser
-                  pSym ')'
-                  return $ PA prop
+pNumber :: Parser UProp
+pNumber = do n <- number                        -- N
+             return $ Num n
 
-p_eq_prop :: Parser UProp
-p_eq_prop = do pSym '('                          -- (prop1 = prop2)
-               prop1 <- prop_parser
-               pSym '='
-               prop2 <- prop_parser
-               pSym ')'
-               return $ Eq prop1 prop2
-
-p_lt_prop :: Parser UProp
-p_lt_prop = do pSym '('                          -- (prop1 < prop2)
-               prop1 <- prop_parser
-               pSym '='
-               prop2 <- prop_parser
-               pSym ')'
-               return $ Eq prop1 prop2
-
-p_number :: Parser UProp
-p_number = do n <- number                        -- N
-              return $ Num n
-
-prop_parser :: Parser UProp
-prop_parser = p_term_prop
-              <|>
-              p_term
+propParser :: Parser UProp
+propParser = pTermProp
+             <|>
+             pTerm
               
-term_parser :: Parser UProp 
-term_parser = p_factor_term
-              <|>
-              p_factor
+termParser :: Parser UProp 
+termParser = pFactorTerm
+             <|>
+             pFactor
               
-factor_parser :: Parser UProp
-factor_parser = p_neg_prop
-                <|>
-                p_paren_prop
-                <|>
-                p_eq_prop
-                <|>
-                p_lt_prop
-                <|>
-                p_number
-
-
-
-
+factorParser :: Parser UProp
+factorParser = pNegProp 
+               <|>
+               pParenProp
+               <|>
+               pEqProp
+               <|>
+               pLtProp
+               <|>
+               pNumber
