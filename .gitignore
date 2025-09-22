@@ -1,3 +1,6 @@
+
+# Haskell
+
 dist
 dist-*
 cabal-dev
@@ -21,3 +24,17 @@ cabal.project.local
 cabal.project.local~
 .HTF/
 .ghc.environment.*
+
+# LaTeX debug files
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.pdf
+*.gz
+*.loa
+*.toc
+*.out
+*.nav
+*.snm
+*.dvi
