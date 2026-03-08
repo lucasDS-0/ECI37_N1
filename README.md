@@ -9,7 +9,7 @@ In this repository the following files are available:
 - Code examples available during the course (found in `code`).
 - Course exam, along its resolution (found in `test`).
 
-## Bibliografía
+## Bibliography
 
 - Gibbons, J. (2015). Functional Programming for Domain-Specific Languages. In: Zsók, V., Horváth, Z., Csató, L. (eds) Central European Functional Programming School. CEFP 2013. Lecture Notes in Computer Science(), vol 8606. Springer, Cham. https://doi.org/10.1007/978-3-319-15940-9 1.
 - McBride, Conor and Paterson, Ross (2008). Applicative programming with effects. J. Funct. Program. 18, Abordaje Funcional a1 (January 2008), 1–13.
